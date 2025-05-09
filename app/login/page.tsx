@@ -18,7 +18,7 @@ export default function Home() {
     <div className="bg-white grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="text-center flex flex-col gap-[12px] row-start-2 items-center">
         <div className="flex">
-        <h1 className="text-2xl mb-2 font-bold">CSGames</h1><span className="text-2xl mb-2">.dev</span>
+        <h1 className="text-black text-2xl mb-2 font-bold">CSGames</h1><span className="text-2xl mb-2">.dev</span>
         </div>
         <div className="w-48 justify-center items-center flex border-[#7289da] bg-[#7289da] text-white p-2 rounded-lg border-2">
             <FaDiscord className=" mr-2"></FaDiscord>
