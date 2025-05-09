@@ -10,7 +10,7 @@ export default function Home() {
         </div>
 
         <div className="flex ">
-        <h1 className="mb-8">Developed by </h1><Link href="https://github.com/isakfiks"><h1 className="ml-1 underline mb-8">isakfiks</h1></Link><h1>,</h1><Link href="https://github.com/nopedal"><h1 className="ml-1 underline mb-8">nopedal</h1></Link><h1>,</h1>  <Link href="https://github.com/nopedal"><h1 className="ml-1 underline mb-8">broidkhisusername</h1></Link>    
+        <h1 className="mb-8">Developed by </h1><Link href="https://github.com/isakfiks"><h1 className="ml-1 underline mb-8">isakfiks</h1></Link><h1>,</h1><Link href="https://github.com/nopedal"><h1 className="ml-1 underline mb-8">nopedal</h1></Link><h1>,</h1>  <Link href="https://github.com/NightStealPea"><h1 className="ml-1 underline mb-8">nightstealpea</h1></Link>    
         </div>
         <div className="flex items-center justify-center">
 

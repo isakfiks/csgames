@@ -1,6 +1,19 @@
+"use client";
 import { FaDiscord, FaGoogle } from "react-icons/fa";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+const supabase = createClientComponentClient();
 
 export default function Home() {
+  async function signInWithDiscord() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'discord',
+    options: {
+    redirectTo: `http://localhost:3000/auth/callback`,
+  },
+  })
+}
+
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="text-center flex flex-col gap-[12px] row-start-2 items-center">
@@ -9,7 +22,7 @@ export default function Home() {
         </div>
         <div className="w-48 justify-center items-center flex border-[#7289da] bg-[#7289da] text-white p-2 rounded-lg border-2">
             <FaDiscord className=" mr-2"></FaDiscord>
-        <button>Login with Discord</button>
+        <button onClick={signInWithDiscord}>Login with Discord</button>
         </div>
         <div className="w-48 justify-center items-center flex border-black text-white p-2 rounded-lg border-2">
             <FaGoogle className="text-black mr-2"></FaGoogle>
