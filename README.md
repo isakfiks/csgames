@@ -1,2 +1,2 @@
-New app
+CS Games
 ## Built using Next.js
