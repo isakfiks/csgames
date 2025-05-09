@@ -7,6 +7,9 @@ export default function Home() {
         <h1>CS Games</h1>
         <Link href="/explore">
         <button className="border-black p-2 rounded-lg border-2">Explore Games</button></Link>
+        <h2>isak fiks er sigma</h2>
+        <Link href="/about">
+        <button className="border-black p-2 rounded-lg border-2">About</button></Link>
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
       </footer>
