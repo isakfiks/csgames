@@ -5,27 +5,43 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { User, RealtimeChannel } from "@supabase/supabase-js"
 
-const supabase = createClientComponentClient()
+interface GameState {
+  id: string
+  lobby_id: string
+  board: number[][]
+  status: "pending" | "in_progress" | "finished"
+  winner: string | null
+  player1: string
+  player2: string
+  current_player: string
+  created_at?: string
+}
+
+interface Profile {
+  id: string
+  username: string
+}
 
 // Colors for the pieces
 const EMPTY_COLOR = "#ffffff"
-const PLAYER1_COLOR = "#e53e3e" 
-const PLAYER2_COLOR = "#ecc94b" 
-const HOVER_COLOR = "#cbd5e0" 
+const PLAYER1_COLOR = "#e53e3e"
+const PLAYER2_COLOR = "#ecc94b"
 
 const POLLING_INTERVAL = 3000
 
 export default function GamePage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const [gameState, setGameState] = useState<any>(null)
-  const [players, setPlayers] = useState<any[]>([])
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const supabase = createClientComponentClient()
+  const [gameState, setGameState] = useState<GameState | null>(null)
+  const [players, setPlayers] = useState<Profile[]>([])
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [hoverColumn, setHoverColumn] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dropAnimation, setDropAnimation] = useState<{ row: number; col: number; player: number } | null>(null)
-  const [winner, setWinner] = useState<any>(null)
+  const [winner, setWinner] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState(false)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -37,8 +53,8 @@ export default function GamePage({ params }: { params: { id: string } }) {
   // Load game data
   useEffect(() => {
     let isActive = true
-    let gameStateSubscription: any = null
-    let gameMovesSubscription: any = null
+    let gameStateSubscription: RealtimeChannel | null = null
+    let gameMovesSubscription: RealtimeChannel | null = null
 
     async function loadGameData() {
       try {
@@ -114,21 +130,21 @@ export default function GamePage({ params }: { params: { id: string } }) {
               if (!isActive) return
 
               // Always update the state
-              setGameState(payload.new)
+              setGameState(payload.new as GameState)
               setLastMoveTime(Date.now())
 
               // Check if the game is over
-              if (payload.new && 'status' in payload.new && payload.new.status === "finished") {
+              if (payload.new && 'status' in payload.new && (payload.new as GameState).status === "finished") {
                 setGameOver(true)
-                if ('winner' in payload.new && payload.new.winner) {
-                  setWinner(payload.new.winner)
+                if ('winner' in payload.new && (payload.new as GameState).winner) {
+                  setWinner((payload.new as GameState).winner)
                 }
               }
 
               // Handle board changes
               if (payload.eventType === "UPDATE" && payload.new && payload.old) {
-                const oldBoard = payload.old.board
-                const newBoard = payload.new.board
+                const oldBoard = (payload.old as GameState).board
+                const newBoard = (payload.new as GameState).board
 
                 // Process if the boards are different only
                 if (JSON.stringify(oldBoard) !== JSON.stringify(newBoard)) {
@@ -162,7 +178,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
                     setTimeout(() => {
                       setDropAnimation(null)
-                    }, 500) 
+                    }, 500)
                   }
                 }
               }
@@ -185,8 +201,8 @@ export default function GamePage({ params }: { params: { id: string } }) {
             (payload) => {
               console.log("New move detected:", payload)
               if (!isActive) return
-              
-              // Refresh the  state when a new move has been made
+
+              // Refresh the state when a new move has been made
               fetchLatestGameState()
             },
           )
@@ -195,9 +211,9 @@ export default function GamePage({ params }: { params: { id: string } }) {
           })
 
         startPolling()
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error loading game data:", err)
-        if (isActive) setError(err.message || "Failed to load game data")
+        if (isActive) setError((err as Error).message || "Failed to load game data")
       } finally {
         if (isActive) setLoading(false)
       }
@@ -219,7 +235,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
     console.log("Starting polling for game state updates")
 
     stopPolling()
-    
+
     pollingIntervalRef.current = setInterval(() => {
       if (gameStateIdRef.current) {
         console.log("Polling for game state updates")
@@ -238,7 +254,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
   async function fetchLatestGameState() {
     try {
       if (!gameStateIdRef.current) return
-      
+
       const { data, error } = await supabase
         .from("game_states")
         .select("*")
@@ -269,15 +285,15 @@ export default function GamePage({ params }: { params: { id: string } }) {
   async function handleManualRefresh() {
     setIsRefreshing(true)
     await fetchLatestGameState()
-    setTimeout(() => setIsRefreshing(false), 500) 
+    setTimeout(() => setIsRefreshing(false), 500)
   }
 
   // Handle click
   async function handleColumnClick(columnIndex: number) {
     if (!gameState || gameOver) return
 
-    // Check if its the users turn
-    if (gameState.current_player !== currentUser.id) {
+    // Check if it's the user's turn
+    if (gameState.current_player !== currentUser?.id) {
       return
     }
 
@@ -299,7 +315,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
         // Fetch game state after moving
         fetchLatestGameState()
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error making move:", err)
     }
   }
@@ -364,15 +380,15 @@ export default function GamePage({ params }: { params: { id: string } }) {
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2 md:mb-0">Connect Four</h2>
 
           <div className="flex items-center space-x-4">
-            <button 
-              onClick={handleManualRefresh} 
+            <button
+              onClick={handleManualRefresh}
               className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
               aria-label="Refresh game"
               disabled={isRefreshing}
             >
               <FaSync className="text-black" />
             </button>
-            
+
             <div className={`flex items-center ${isMyTurn() && !gameOver ? "animate-pulse" : ""}`}>
               <div
                 className="w-4 h-4 md:w-6 md:h-6 rounded-full mr-2"
@@ -438,7 +454,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
           style={{
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
           }}
-          key={`board-${lastMoveTime}`} 
+          key={`board-${lastMoveTime}`}
         >
           {isMyTurn() && hoverColumn !== null && !gameOver && (
             <div
@@ -453,7 +469,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
           )}
 
           <div className="grid grid-cols-7 gap-1 md:gap-2">
-            {board.map((row: any, rowIndex: number) =>
+            {board.map((row: number[], rowIndex: number) =>
               row.map((cell: number, colIndex: number) => (
                 <div
                   key={`${rowIndex}-${colIndex}`}
@@ -479,7 +495,6 @@ export default function GamePage({ params }: { params: { id: string } }) {
             )}
           </div>
         </div>
-
       </main>
     </div>
   )

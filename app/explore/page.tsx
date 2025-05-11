@@ -3,8 +3,28 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { FaArrowLeft, FaPlus } from "react-icons/fa"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClientComponentClient, User } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
+
+type UserProfile = {
+  id: string
+  email: string | undefined
+  name: string | null
+  avatar_url: string | null
+  username?: string | null
+}
+
+type Lobby = {
+  id: string;
+  gameStateId: string;
+  gameId: number;
+  gameTitle: string;
+  player1: string;
+  player1Id: string;
+  player2Id: string | null;
+  needsPlayer: boolean;
+  createdAt: string;
+};
 
 const supabase = createClientComponentClient()
 
@@ -36,17 +56,17 @@ const currentGames = [
     title: "Battleship",
     description: "Naval combat strategy game with hidden ship placement.",
     image: "/placeholder.svg?height=200&width=300",
-    players: "2 players",
   },
 ]
 
 export default function ExplorePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [showUsernameModal, setShowUsernameModal] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeLobbies, setActiveLobbies] = useState<any[]>([])
+  const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([]);
+  
 
   // Filter games based on search
   const filteredGames = currentGames.filter((game) => game.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -86,7 +106,7 @@ export default function ExplorePage() {
           const { error: insertError } = await supabase.from("profiles").insert([
             {
               id: session.user.id,
-              email: session.user.email,
+              email: session.user.email || "",
               name: session.user.user_metadata?.full_name || null,
               avatar_url: session.user.user_metadata?.avatar_url || null,
             },
@@ -100,7 +120,9 @@ export default function ExplorePage() {
           setShowUsernameModal(true)
           setUserProfile({
             id: session.user.id,
-            email: session.user.email,
+            email: session.user.email || "",
+            name: session.user.user_metadata?.full_name || null,
+            avatar_url: session.user.user_metadata?.avatar_url || null,
             username: null,
           })
         } else {

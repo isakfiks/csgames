@@ -3,12 +3,13 @@ import Link from "next/link"
 import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle } from "react-icons/fa"
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { User } from "@supabase/auth-helpers-nextjs"
 
 const supabase = createClientComponentClient()
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<User | null>(null)
   const [showAboutModal, setShowAboutModal] = useState(false)
 
   // Check if user is logged in
