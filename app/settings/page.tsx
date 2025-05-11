@@ -5,12 +5,18 @@ import Link from "next/link"
 import { FaArrowLeft, FaClock } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
+import { User } from "@supabase/auth-helpers-nextjs"
 
 const supabase = createClientComponentClient()
 
+interface Profile {
+  id: string
+  username: string
+}
+
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showUsernameModal, setShowUsernameModal] = useState(false)
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null)

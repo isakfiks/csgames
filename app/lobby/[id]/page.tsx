@@ -1,73 +1,108 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useRef } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { FaArrowLeft, FaPlay, FaSync } from "react-icons/fa"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import React from "react"
+import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FaArrowLeft, FaPlay, FaSync } from "react-icons/fa";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { RealtimeChannel } from "@supabase/supabase-js";
+import React from "react";
+import { User } from "@supabase/supabase-js";
+const supabase = createClientComponentClient();
 
-const supabase = createClientComponentClient()
+const POLLING_INTERVAL = 3000;
 
-const POLLING_INTERVAL = 3000
+interface SupabaseError {
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}
 
-// Interface for gamestate
+interface Lobby {
+  id: string;
+  created_by: string;
+  game_id: string | null;
+  status: string;
+  created_at: string;
+  [key: string]: unknown;
+}
+
+interface Game {
+  id: string;
+  title: string;
+  [key: string]: unknown;
+}
+
+interface Player {
+  id: string;
+  username: string;
+  [key: string]: unknown;
+}
+
 interface GameState {
-  id?: string;
+  id: string;
   lobby_id: string;
   player1: string | null;
   player2: string | null;
   status: "waiting" | "playing" | "finished";
-  [key: string]: any; 
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+interface RealtimePayload {
+  new: GameState;
+  old?: Partial<GameState>;
+  event: "INSERT" | "UPDATE" | "DELETE";
 }
 
 export default function LobbyPage({ params }: { params: Promise<{ id: string }> }) {
-  const router = useRouter()
-  const [lobby, setLobby] = useState<any>(null)
-  const [game, setGame] = useState<any>(null)
-  const [gameState, setGameState] = useState<GameState | null>(null) 
-  const [players, setPlayers] = useState<any[]>([])
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [joining, setJoining] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now())
+  const router = useRouter();
+  const [lobby, setLobby] = useState<Lobby | null>(null);
+  const [game, setGame] = useState<Game | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const subscriptionRef = useRef<any>(null)
-  const gameStateIdRef = useRef<string | null>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const subscriptionRef = useRef<RealtimeChannel | null>(null);
+  const gameStateIdRef = useRef<string | null>(null);
 
-  const resolvedParams = React.use(params)
+  const resolvedParams = React.use(params);
 
   useEffect(() => {
-    let isActive = true
+    let isActive = true;
 
     async function fetchLobbyData() {
       try {
-        console.log("Fetching lobby data for:", resolvedParams.id)
+        console.log("Fetching lobby data for:", resolvedParams.id);
 
         // Get current user
         const {
           data: { session },
-        } = await supabase.auth.getSession()
+        } = await supabase.auth.getSession();
 
         if (!session) {
-          router.push("/")
-          return
+          router.push("/");
+          return;
         }
 
-        if (isActive) setCurrentUser(session.user)
+        if (isActive) setCurrentUser(session.user);
 
         // Fetch lobby data
         const { data: lobbyData, error: lobbyError } = await supabase
           .from("lobbies")
           .select("*")
           .eq("id", resolvedParams.id)
-          .single()
+          .single();
 
-        if (lobbyError) throw lobbyError
-        if (isActive) setLobby(lobbyData)
+        if (lobbyError) throw lobbyError;
+        if (isActive) setLobby(lobbyData);
 
         // Fetch game data
         if (lobbyData?.game_id) {
@@ -75,10 +110,10 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
             .from("games")
             .select("*")
             .eq("id", lobbyData.game_id)
-            .single()
+            .single();
 
-          if (gameError) throw gameError
-          if (isActive) setGame(gameData)
+          if (gameError) throw gameError;
+          if (isActive) setGame(gameData);
         }
 
         // Fetch game state
@@ -86,141 +121,138 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           .from("game_states")
           .select("*")
           .eq("lobby_id", resolvedParams.id)
-          .maybeSingle()
+          .maybeSingle();
 
         if (gameStateError && gameStateError.code !== "PGRST116") {
-          throw gameStateError
+          throw gameStateError;
         }
 
         if (gameStateData) {
           if (isActive) {
-            setGameState(gameStateData)
-            gameStateIdRef.current = gameStateData.id
+            setGameState(gameStateData);
+            gameStateIdRef.current = gameStateData.id;
           }
 
           // Fetch player profiles
-          const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+          const playerIds = [gameStateData.player1, gameStateData.player2].filter(
+            (id): id is string => id !== null
+          );
 
           if (playerIds.length > 0) {
             const { data: playerData, error: playerError } = await supabase
               .from("profiles")
               .select("*")
-              .in("id", playerIds)
+              .in("id", playerIds);
 
             if (playerError) {
-              console.error("Error fetching players:", playerError)
+              console.error("Error fetching players:", playerError);
             } else if (isActive) {
-              setPlayers(playerData || [])
+              setPlayers(playerData || []);
             }
           }
         } else {
           // If no game state exists yet, try to create one
-          await joinGame(true)
+          await joinGame(true);
         }
-
-        if (isActive) setLastUpdateTime(Date.now())
 
         // Set up real-time subscription for game state changes
         if (subscriptionRef.current) {
-          subscriptionRef.current.unsubscribe()
+          subscriptionRef.current.unsubscribe();
         }
 
         const gameStateSubscription = supabase
           .channel("lobby_game_state_changes")
           .on(
-            "postgres_changes",
+            "postgres_changes" as unknown as "system",
             {
               event: "*",
               schema: "public",
               table: "game_states",
               filter: `lobby_id=eq.${resolvedParams.id}`,
             },
-            (payload) => {
-              console.log("Game state changed in lobby:", payload)
-              if (!isActive) return
+            (payload: RealtimePayload) => {
+              console.log("Game state changed in lobby:", payload);
+              if (!isActive) return;
 
               // Update the game state
-              setGameState(payload.new as GameState)
-              setLastUpdateTime(Date.now())
+              setGameState(payload.new);
 
               // If the game has started, go to the game page
-              if (
-                (payload.new as GameState)?.status === "playing" &&
-                payload.old &&
-                typeof payload.old === "object" &&
-                "status" in payload.old &&
-                payload.old.status === "waiting"
-              ) {
-                router.push(`/game/${resolvedParams.id}`)
+              if (payload.new.status === "playing" && payload.old?.status === "waiting") {
+                router.push(`/game/${resolvedParams.id}`);
               }
 
-              const playerIds = ["player1", "player2"]
-                .map((key) => payload.new && typeof payload.new === "object" ? (payload.new as Record<string, unknown>)[key] : null)
-                .filter(Boolean)
+              const playerIds = [payload.new.player1, payload.new.player2].filter(
+                (id): id is string => id !== null
+              );
               if (playerIds.length > 0) {
-                fetchPlayerProfiles(playerIds as string[])
+                fetchPlayerProfiles(playerIds);
               }
             }
           )
           .subscribe((status) => {
-            console.log("Lobby game state subscription status:", status)
-          })
+            console.log("Lobby game state subscription status:", status);
+          });
 
-        subscriptionRef.current = gameStateSubscription
+        subscriptionRef.current = gameStateSubscription;
 
-        startPolling()
-      } catch (err: any) {
-        console.error("Error fetching lobby data:", err)
-        if (isActive) setError(err.message || "Failed to load lobby data")
+        startPolling();
+      } catch (err: unknown) {
+        const error = err as SupabaseError;
+        console.error("Error fetching lobby data:", error);
+        if (isActive) setError(error.message || "Failed to load lobby data");
       } finally {
-        if (isActive) setLoading(false)
+        if (isActive) setLoading(false);
       }
     }
 
-    fetchLobbyData()
+    fetchLobbyData();
 
     return () => {
-      isActive = false
+      isActive = false;
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe()
+        subscriptionRef.current.unsubscribe();
       }
-      stopPolling()
-    }
-  }, [resolvedParams.id, router])
+      stopPolling();
+    };
+  }, [resolvedParams.id, router]);
 
   // Start polling for updates
   function startPolling() {
-    console.log("Starting polling for lobby updates")
+    console.log("Starting polling for lobby updates");
 
-    stopPolling()
+    stopPolling();
 
     pollingIntervalRef.current = setInterval(() => {
-      console.log("Polling for lobby updates")
-      refreshLobbyData()
-    }, POLLING_INTERVAL)
+      console.log("Polling for lobby updates");
+      refreshLobbyData();
+    }, POLLING_INTERVAL);
   }
 
   // Stop polling
   function stopPolling() {
     if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current)
-      pollingIntervalRef.current = null
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
   }
 
   // Fetch player profiles
   async function fetchPlayerProfiles(playerIds: string[]) {
     try {
-      const { data, error } = await supabase.from("profiles").select("*").in("id", playerIds)
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", playerIds);
 
       if (error) {
-        console.error("Error fetching player profiles:", error)
-        return
+        console.error("Error fetching player profiles:", error);
+        return;
       }
 
-      setPlayers(data || [])
-    } catch (err) {
-      console.error("Error in fetchPlayerProfiles:", err)
+      setPlayers(data || []);
+    } catch (err: unknown) {
+      console.error("Error in fetchPlayerProfiles:", err);
     }
   }
 
@@ -230,79 +262,81 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
         .from("game_states")
         .select("*")
         .eq("lobby_id", resolvedParams.id)
-        .maybeSingle()
+        .maybeSingle();
 
       if (gameStateError && gameStateError.code !== "PGRST116") {
-        console.error("Error fetching game state:", gameStateError)
-        return
+        console.error("Error fetching game state:", gameStateError);
+        return;
       }
 
       if (gameStateData) {
-        setGameState(gameStateData)
-        gameStateIdRef.current = gameStateData.id
+        setGameState(gameStateData);
+        gameStateIdRef.current = gameStateData.id;
 
         if (gameStateData.status === "playing") {
-          router.push(`/game/${resolvedParams.id}`)
-          return
+          router.push(`/game/${resolvedParams.id}`);
+          return;
         }
 
-        const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+        const playerIds = [gameStateData.player1, gameStateData.player2].filter(
+          (id): id is string => id !== null
+        );
         if (playerIds.length > 0) {
-          fetchPlayerProfiles(playerIds as string[])
+          fetchPlayerProfiles(playerIds);
         }
       }
 
-      setLastUpdateTime(Date.now())
-    } catch (err) {
-      console.error("Error in refreshLobbyData:", err)
+    } catch (err: unknown) {
+      console.error("Error in refreshLobbyData:", err);
     }
   }
 
   async function handleManualRefresh() {
-    setIsRefreshing(true)
-    await refreshLobbyData()
-    setTimeout(() => setIsRefreshing(false), 500)
+    setIsRefreshing(true);
+    await refreshLobbyData();
+    setTimeout(() => setIsRefreshing(false), 500);
   }
 
   async function joinGame(silent = false) {
     try {
-      if (!silent) setJoining(true)
+      if (!silent) setJoining(true);
 
       const { data, error } = await supabase.rpc("join_lobby_simple", {
         p_id: resolvedParams.id,
-      })
+      });
 
       if (error) {
-        console.error("Error joining game:", error)
-        if (!silent) setError(error.message || "Failed to join game")
-        return
+        console.error("Error joining game:", error);
+        if (!silent) setError(error.message || "Failed to join game");
+        return;
       }
 
-      console.log("Joined game:", data)
+      console.log("Joined game:", data);
 
       // Refresh state data
-      await refreshLobbyData()
-    } catch (err: any) {
-      console.error("Error joining game:", err)
-      if (!silent) setError(err.message || "Failed to join game")
+      await refreshLobbyData();
+    } catch (err: unknown) {
+      const error = err as SupabaseError;
+      console.error("Error joining game:", error);
+      if (!silent) setError(error.message || "Failed to join game");
     } finally {
-      if (!silent) setJoining(false)
+      if (!silent) setJoining(false);
     }
   }
 
-  function getPlayerName(playerId: string) {
-    if (!playerId) return "Waiting for player..."
-
-    const player = players.find((p) => p.id === playerId)
-    return player?.username || "Unknown player"
-  }
+  function getPlayerName(playerId: string | null | undefined) {
+      if (!playerId) return "Waiting for player...";
+  
+      const player = players.find((p) => p.id === playerId);
+      return player?.username || "Unknown player";
+    }
 
   if (loading) {
     return (
       <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
         <p className="text-black">Loading lobby...</p>
       </div>
-    )
+    );
   }
 
   if (error || !lobby) {
@@ -313,13 +347,14 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           Return to Explore Games
         </Link>
       </div>
-    )
+    );
   }
 
-  const isCreator = lobby.created_by === currentUser?.id
-  const isInGame = gameState && (gameState.player1 === currentUser?.id || gameState.player2 === currentUser?.id)
-  const canJoin = gameState && gameState.player2 === null && !isInGame && !isCreator
-  const isGameFull = gameState && gameState.player1 && gameState.player2
+  const isCreator = lobby.created_by === currentUser?.id;
+  const isInGame =
+    gameState && (gameState.player1 === currentUser?.id || gameState.player2 === currentUser?.id);
+  const canJoin = gameState && gameState.player2 === null && !isInGame && !isCreator;
+  const isGameFull = gameState && gameState.player1 && gameState.player2;
 
   return (
     <div className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]">
@@ -343,7 +378,9 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
             <button
               onClick={handleManualRefresh}
-              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing ? "animate-spin" : ""}`}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${
+                isRefreshing ? "animate-spin" : ""
+              }`}
               aria-label="Refresh lobby"
               disabled={isRefreshing}
             >
@@ -359,7 +396,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
               <strong>Status:</strong> {gameState?.status || "Waiting for players"}
             </p>
             <p className="text-black">
-              <strong>Created by:</strong> {getPlayerName(gameState?.player1 || "")}
+              <strong>Created by:</strong> {getPlayerName(gameState?.player1)}
             </p>
           </div>
 
@@ -368,13 +405,17 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="border-2 border-black rounded-lg p-4">
                 <p className="font-bold mb-2">Player 1 (Red)</p>
-                <p>{getPlayerName(gameState?.player1 || "")}</p>
-                {gameState?.player1 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+                <p>{getPlayerName(gameState?.player1)}</p>
+                {gameState?.player1 === currentUser?.id && (
+                  <p className="text-xs text-gray-500 mt-1">(You)</p>
+                )}
               </div>
               <div className="border-2 border-black rounded-lg p-4">
                 <p className="font-bold mb-2">Player 2 (Yellow)</p>
-                <p>{getPlayerName(gameState?.player2 || "")}</p>
-                {gameState?.player2 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+                <p>{getPlayerName(gameState?.player2)}</p>
+                {gameState?.player2 === currentUser?.id && (
+                  <p className="text-xs text-gray-500 mt-1">(You)</p>
+                )}
               </div>
             </div>
           </div>
@@ -410,5 +451,5 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </main>
     </div>
-  )
+  );
 }
