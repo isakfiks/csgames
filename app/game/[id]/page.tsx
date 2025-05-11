@@ -1,5 +1,6 @@
 "use client"
 
+import { use } from "react"
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -31,7 +32,8 @@ const PLAYER2_COLOR = "#ecc94b"
 
 const POLLING_INTERVAL = 3000
 
-export default function GamePage({ params }: { params: { id: string } }) {
+export default function GamePage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise)
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [gameState, setGameState] = useState<GameState | null>(null)
