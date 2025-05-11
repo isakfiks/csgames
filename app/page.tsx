@@ -73,6 +73,8 @@ export default function Home() {
         },
       })
 
+      console.log(data);
+      console.log(error);
       if (error) throw error
 
       // Redirect happens automatically
