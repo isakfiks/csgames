@@ -1,50 +1,73 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { FaArrowLeft } from "react-icons/fa"
+import { useRouter } from "next/navigation"
+import { FaArrowLeft, FaPlay, FaSync } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import React from "react"
 
 const supabase = createClientComponentClient()
 
-export default function LobbyPage({ params }: { params: { id: string } }) {
+const POLLING_INTERVAL = 3000
+
+// Interface for gamestate
+interface GameState {
+  id?: string;
+  lobby_id: string;
+  player1: string | null;
+  player2: string | null;
+  status: "waiting" | "playing" | "finished";
+  [key: string]: any; 
+}
+
+export default function LobbyPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
   const [lobby, setLobby] = useState<any>(null)
   const [game, setGame] = useState<any>(null)
+  const [gameState, setGameState] = useState<GameState | null>(null) 
+  const [players, setPlayers] = useState<any[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [joining, setJoining] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now())
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const subscriptionRef = useRef<any>(null)
+  const gameStateIdRef = useRef<string | null>(null)
+
+  const resolvedParams = React.use(params)
 
   useEffect(() => {
+    let isActive = true
+
     async function fetchLobbyData() {
       try {
-        // Fetch lobby (data)
+        console.log("Fetching lobby data for:", resolvedParams.id)
+
+        // Get current user
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          router.push("/")
+          return
+        }
+
+        if (isActive) setCurrentUser(session.user)
+
+        // Fetch lobby data
         const { data: lobbyData, error: lobbyError } = await supabase
           .from("lobbies")
           .select("*")
-          .eq("id", params.id)
+          .eq("id", resolvedParams.id)
           .single()
 
         if (lobbyError) throw lobbyError
-
-        // If lobby data is found, fetch the creators info
-        let creatorData = null
-        if (lobbyData && lobbyData.created_by) {
-          const { data: userData, error: userError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", lobbyData.created_by)
-            .single()
-
-          if (!userError) {
-            creatorData = userData
-          }
-        }
-
-        // Add creator data to lobby object
-        if (lobbyData && creatorData) {
-          lobbyData.creator = creatorData
-        }
-
-        setLobby(lobbyData)
+        if (isActive) setLobby(lobbyData)
 
         // Fetch game data
         if (lobbyData?.game_id) {
@@ -55,18 +78,224 @@ export default function LobbyPage({ params }: { params: { id: string } }) {
             .single()
 
           if (gameError) throw gameError
-          setGame(gameData)
+          if (isActive) setGame(gameData)
         }
+
+        // Fetch game state
+        const { data: gameStateData, error: gameStateError } = await supabase
+          .from("game_states")
+          .select("*")
+          .eq("lobby_id", resolvedParams.id)
+          .maybeSingle()
+
+        if (gameStateError && gameStateError.code !== "PGRST116") {
+          throw gameStateError
+        }
+
+        if (gameStateData) {
+          if (isActive) {
+            setGameState(gameStateData)
+            gameStateIdRef.current = gameStateData.id
+          }
+
+          // Fetch player profiles
+          const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+
+          if (playerIds.length > 0) {
+            const { data: playerData, error: playerError } = await supabase
+              .from("profiles")
+              .select("*")
+              .in("id", playerIds)
+
+            if (playerError) {
+              console.error("Error fetching players:", playerError)
+            } else if (isActive) {
+              setPlayers(playerData || [])
+            }
+          }
+        } else {
+          // If no game state exists yet, try to create one
+          await joinGame(true)
+        }
+
+        if (isActive) setLastUpdateTime(Date.now())
+
+        // Set up real-time subscription for game state changes
+        if (subscriptionRef.current) {
+          subscriptionRef.current.unsubscribe()
+        }
+
+        const gameStateSubscription = supabase
+          .channel("lobby_game_state_changes")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "game_states",
+              filter: `lobby_id=eq.${resolvedParams.id}`,
+            },
+            (payload) => {
+              console.log("Game state changed in lobby:", payload)
+              if (!isActive) return
+
+              // Update the game state
+              setGameState(payload.new as GameState)
+              setLastUpdateTime(Date.now())
+
+              // If the game has started, go to the game page
+              if (
+                (payload.new as GameState)?.status === "playing" &&
+                payload.old &&
+                typeof payload.old === "object" &&
+                "status" in payload.old &&
+                payload.old.status === "waiting"
+              ) {
+                router.push(`/game/${resolvedParams.id}`)
+              }
+
+              const playerIds = ["player1", "player2"]
+                .map((key) => payload.new && typeof payload.new === "object" ? (payload.new as Record<string, unknown>)[key] : null)
+                .filter(Boolean)
+              if (playerIds.length > 0) {
+                fetchPlayerProfiles(playerIds as string[])
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log("Lobby game state subscription status:", status)
+          })
+
+        subscriptionRef.current = gameStateSubscription
+
+        startPolling()
       } catch (err: any) {
         console.error("Error fetching lobby data:", err)
-        setError(err.message || "Failed to load lobby data")
+        if (isActive) setError(err.message || "Failed to load lobby data")
       } finally {
-        setLoading(false)
+        if (isActive) setLoading(false)
       }
     }
 
     fetchLobbyData()
-  }, [params.id])
+
+    return () => {
+      isActive = false
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe()
+      }
+      stopPolling()
+    }
+  }, [resolvedParams.id, router])
+
+  // Start polling for updates
+  function startPolling() {
+    console.log("Starting polling for lobby updates")
+
+    stopPolling()
+
+    pollingIntervalRef.current = setInterval(() => {
+      console.log("Polling for lobby updates")
+      refreshLobbyData()
+    }, POLLING_INTERVAL)
+  }
+
+  // Stop polling
+  function stopPolling() {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+  }
+
+  // Fetch player profiles
+  async function fetchPlayerProfiles(playerIds: string[]) {
+    try {
+      const { data, error } = await supabase.from("profiles").select("*").in("id", playerIds)
+
+      if (error) {
+        console.error("Error fetching player profiles:", error)
+        return
+      }
+
+      setPlayers(data || [])
+    } catch (err) {
+      console.error("Error in fetchPlayerProfiles:", err)
+    }
+  }
+
+  async function refreshLobbyData() {
+    try {
+      const { data: gameStateData, error: gameStateError } = await supabase
+        .from("game_states")
+        .select("*")
+        .eq("lobby_id", resolvedParams.id)
+        .maybeSingle()
+
+      if (gameStateError && gameStateError.code !== "PGRST116") {
+        console.error("Error fetching game state:", gameStateError)
+        return
+      }
+
+      if (gameStateData) {
+        setGameState(gameStateData)
+        gameStateIdRef.current = gameStateData.id
+
+        if (gameStateData.status === "playing") {
+          router.push(`/game/${resolvedParams.id}`)
+          return
+        }
+
+        const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+        if (playerIds.length > 0) {
+          fetchPlayerProfiles(playerIds as string[])
+        }
+      }
+
+      setLastUpdateTime(Date.now())
+    } catch (err) {
+      console.error("Error in refreshLobbyData:", err)
+    }
+  }
+
+  async function handleManualRefresh() {
+    setIsRefreshing(true)
+    await refreshLobbyData()
+    setTimeout(() => setIsRefreshing(false), 500)
+  }
+
+  async function joinGame(silent = false) {
+    try {
+      if (!silent) setJoining(true)
+
+      const { data, error } = await supabase.rpc("join_lobby_simple", {
+        p_id: resolvedParams.id,
+      })
+
+      if (error) {
+        console.error("Error joining game:", error)
+        if (!silent) setError(error.message || "Failed to join game")
+        return
+      }
+
+      console.log("Joined game:", data)
+
+      // Refresh state data
+      await refreshLobbyData()
+    } catch (err: any) {
+      console.error("Error joining game:", err)
+      if (!silent) setError(err.message || "Failed to join game")
+    } finally {
+      if (!silent) setJoining(false)
+    }
+  }
+
+  function getPlayerName(playerId: string) {
+    if (!playerId) return "Waiting for player..."
+
+    const player = players.find((p) => p.id === playerId)
+    return player?.username || "Unknown player"
+  }
 
   if (loading) {
     return (
@@ -87,6 +316,11 @@ export default function LobbyPage({ params }: { params: { id: string } }) {
     )
   }
 
+  const isCreator = lobby.created_by === currentUser?.id
+  const isInGame = gameState && (gameState.player1 === currentUser?.id || gameState.player2 === currentUser?.id)
+  const canJoin = gameState && gameState.player2 === null && !isInGame && !isCreator
+  const isGameFull = gameState && gameState.player1 && gameState.player2
+
   return (
     <div className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-4xl mx-auto mb-8">
@@ -102,32 +336,76 @@ export default function LobbyPage({ params }: { params: { id: string } }) {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto">
+      <main className="text-black max-w-4xl mx-auto">
         <div className="border-2 border-black rounded-lg p-6">
-          <h2 className="text-3xl font-bold text-black mb-4">{game?.title || "Game"} Lobby</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-3xl font-bold text-black">{game?.title || "Connect Four"} Lobby</h2>
+
+            <button
+              onClick={handleManualRefresh}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing ? "animate-spin" : ""}`}
+              aria-label="Refresh lobby"
+              disabled={isRefreshing}
+            >
+              <FaSync className="text-black" />
+            </button>
+          </div>
 
           <div className="mb-6">
             <p className="text-black mb-2">
-              <strong>Lobby ID:</strong> {params.id}
+              <strong>Lobby ID:</strong> {resolvedParams.id}
             </p>
             <p className="text-black mb-2">
-              <strong>Status:</strong> {lobby.status || "Open"}
+              <strong>Status:</strong> {gameState?.status || "Waiting for players"}
             </p>
             <p className="text-black">
-              <strong>Created by:</strong> {lobby.creator?.name || lobby.creator?.email || "Unknown player"}
+              <strong>Created by:</strong> {getPlayerName(gameState?.player1 || "")}
             </p>
           </div>
 
           <div className="mb-6">
-            <h3 className="text-xl font-bold text-black mb-2">Players</h3>
-            {/* Will be replaced with actual player data from Supabase in the near future! */}
-            <div className="border border-gray-300 rounded p-4">
-              <p className="text-gray-700">Waiting for players to join...</p>
+            <h3 className="text-xl font-bold text-black mb-4">Players</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border-2 border-black rounded-lg p-4">
+                <p className="font-bold mb-2">Player 1 (Red)</p>
+                <p>{getPlayerName(gameState?.player1 || "")}</p>
+                {gameState?.player1 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+              </div>
+              <div className="border-2 border-black rounded-lg p-4">
+                <p className="font-bold mb-2">Player 2 (Yellow)</p>
+                <p>{getPlayerName(gameState?.player2 || "")}</p>
+                {gameState?.player2 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+              </div>
             </div>
           </div>
 
           <div className="flex justify-end">
-            <button className="bg-black text-white px-4 py-2 rounded-lg">Start Game</button>
+            {isInGame && gameState?.status === "playing" && (
+              <Link href={`/game/${resolvedParams.id}`}>
+                <button className="bg-black text-white px-6 py-3 rounded-lg flex items-center">
+                  <FaPlay className="mr-2" />
+                  Go to Game
+                </button>
+              </Link>
+            )}
+
+            {canJoin && (
+              <button
+                onClick={() => joinGame()}
+                disabled={joining}
+                className="bg-black text-white px-6 py-3 rounded-lg"
+              >
+                {joining ? "Joining..." : "Join Game"}
+              </button>
+            )}
+
+            {isGameFull && gameState?.status === "waiting" && (
+              <p className="text-gray-600">Waiting for the game to start...</p>
+            )}
+
+            {!canJoin && !isInGame && !isCreator && gameState?.status !== "waiting" && (
+              <p className="text-gray-600">This game is already in progress.</p>
+            )}
           </div>
         </div>
       </main>
