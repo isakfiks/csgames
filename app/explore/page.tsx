@@ -248,10 +248,13 @@ export default function ExplorePage() {
   // Handle username setting
   function handleUsernameSet(username: string) {
     // Update the local state with new username
-    setUserProfile((prev: any) => ({
-      ...prev,
-      username,
-    }))
+    setUserProfile((prev: UserProfile | null) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        username,
+      }
+    })
   }
 
   async function createLobby(gameId: number) {
