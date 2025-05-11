@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { FaArrowLeft, FaPlus } from "react-icons/fa"
-import { createClientComponentClient, User } from "@supabase/auth-helpers-nextjs"
+import { createClientComponentClient, type User } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
+import { motion } from "framer-motion"
 
 type UserProfile = {
   id: string
@@ -15,16 +16,16 @@ type UserProfile = {
 }
 
 type Lobby = {
-  id: string;
-  gameStateId: string;
-  gameId: number;
-  gameTitle: string;
-  player1: string;
-  player1Id: string;
-  player2Id: string | null;
-  needsPlayer: boolean;
-  createdAt: string;
-};
+  id: string
+  gameStateId: string
+  gameId: number
+  gameTitle: string
+  player1: string
+  player1Id: string
+  player2Id: string | null
+  needsPlayer: boolean
+  createdAt: string
+}
 
 const supabase = createClientComponentClient()
 
@@ -65,8 +66,7 @@ export default function ExplorePage() {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([]);
-  
+  const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([])
 
   // Filter games based on search
   const filteredGames = currentGames.filter((game) => game.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -210,8 +210,8 @@ export default function ExplorePage() {
       const gameIds = [...new Set(data.map((gs) => gs.lobbies?.[0]?.game_id).filter(Boolean))]
 
       interface Game {
-        id: number;
-        title: string;
+        id: number
+        title: string
       }
       let games: Game[] = []
       if (gameIds.length > 0) {
@@ -249,7 +249,7 @@ export default function ExplorePage() {
   function handleUsernameSet(username: string) {
     // Update the local state with new username
     setUserProfile((prev: UserProfile | null) => {
-      if (!prev) return prev;
+      if (!prev) return prev
       return {
         ...prev,
         username,
@@ -290,14 +290,37 @@ export default function ExplorePage() {
 
   if (isLoading) {
     return (
-      <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
-        <p className="text-black">Loading...</p>
-      </div>
+      <motion.div
+        className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.p
+          className="text-black"
+          animate={{
+            scale: [1, 1.05, 1],
+            opacity: [1, 0.8, 1],
+          }}
+          transition={{
+            repeat: Number.POSITIVE_INFINITY,
+            duration: 1.5,
+          }}
+        >
+          Loading...
+        </motion.p>
+      </motion.div>
     )
   }
 
   return (
-    <div className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]">
+    <motion.div
+      className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Username Modal */}
       <UsernameModal
         isOpen={showUsernameModal}
@@ -307,47 +330,103 @@ export default function ExplorePage() {
         onUsernameSet={handleUsernameSet}
       />
 
-      <header className="max-w-6xl mx-auto mb-8">
+      <motion.header
+        className="max-w-6xl mx-auto mb-8"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      >
         <div className="flex justify-between items-center">
           <Link href="/" className="flex items-center text-black">
-            <FaArrowLeft className="mr-2" />
-            <span>Back to Home</span>
+            <motion.div className="flex" whileHover={{ x: -3 }} whileTap={{ scale: 0.95 }}>
+              <FaArrowLeft className="mr-2" />
+              <span>Back to Home</span>
+            </motion.div>
           </Link>
-          <div className="flex">
+          <motion.div
+            className="flex"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
             <h1 className="text-2xl font-bold text-black">CSGames</h1>
             <span className="text-black text-2xl">.dev</span>
-          </div>
+          </motion.div>
         </div>
-      </header>
+      </motion.header>
 
-      <main className="text-black max-w-6xl mx-auto">
-        <div className="mb-8">
+      <motion.main
+        className="text-black max-w-6xl mx-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        <motion.div
+          className="mb-8"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        >
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-3xl font-bold text-black">Explore Games</h2>
             {userProfile?.username && (
-              <Link href="/settings" className="text-blue-600 hover:underline">
-                Settings
-              </Link>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Link href="/settings" className="text-blue-600 hover:underline">
+                  Settings
+                </Link>
+              </motion.div>
             )}
           </div>
-          <div className="relative">
-            <input
+          <motion.div
+            className="relative"
+            initial={{ width: "90%" }}
+            animate={{ width: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <motion.input
               type="text"
               placeholder="Search games..."
               className="w-full p-3 border-2 border-black rounded-lg"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              whileFocus={{ boxShadow: "0 0 0 3px rgba(0, 0, 0, 0.1)" }}
+              transition={{ duration: 0.2 }}
             />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Active lobbies section */}
         {activeLobbies.length > 0 && (
-          <div className="mb-12">
+          <motion.div
+            className="mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
             <h3 className="text-2xl font-bold text-black mb-4">Active Lobbies</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeLobbies.map((lobby) => (
-                <div key={lobby.id} className="border-2 border-black rounded-lg overflow-hidden">
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ staggerChildren: 0.1 }}
+            >
+              {activeLobbies.map((lobby, index) => (
+                <motion.div
+                  key={lobby.id}
+                  className="border-2 border-black rounded-lg overflow-hidden"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{
+                    delay: index * 0.05,
+                    type: "spring",
+                    damping: 20,
+                    stiffness: 200,
+                  }}
+                  whileHover={{
+                    y: -5,
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                  }}
+                >
                   <div className="bg-gray-100 p-3 border-b-2 border-black">
                     <h4 className="font-bold">{lobby.gameTitle}</h4>
                   </div>
@@ -357,38 +436,66 @@ export default function ExplorePage() {
                       {lobby.needsPlayer ? "Waiting for opponent" : "Ready to start"}
                     </p>
                     <Link href={`/lobby/${lobby.id}`}>
-                      <button className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg">
+                      <motion.button
+                        className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                        whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                      >
                         {lobby.needsPlayer ? "Join Game" : "View Lobby"}
-                      </button>
+                      </motion.button>
                     </Link>
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
 
         <h3 className="text-2xl font-bold text-black mb-4">All Games</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredGames.map((game) => (
-            <div key={game.id} className="border-2 border-black rounded-lg overflow-hidden">
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ staggerChildren: 0.1 }}
+        >
+          {filteredGames.map((game, index) => (
+            <motion.div
+              key={game.id}
+              className="border-2 border-black rounded-lg overflow-hidden"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{
+                delay: index * 0.05,
+                type: "spring",
+                damping: 20,
+                stiffness: 200,
+              }}
+              whileHover={{
+                y: -5,
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              }}
+            >
               <img src={game.image || "/placeholder.svg"} alt={game.title} className="w-full h-48 object-cover" />
               <div className="p-4">
                 <h3 className="text-xl font-bold text-black">{game.title}</h3>
                 <p className="text-gray-700 mb-2">{game.description}</p>
                 <p className="text-sm text-gray-500 mb-4">{game.players}</p>
-                <button
+                <motion.button
                   onClick={() => createLobby(game.id)}
                   className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                  whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 >
                   <FaPlus className="mr-2" />
                   Create Lobby
-                </button>
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
-      </main>
-    </div>
+        </motion.div>
+      </motion.main>
+    </motion.div>
   )
 }
