@@ -18,7 +18,6 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSupabaseReady, setIsSupabaseReady] = useState<boolean>(false);
 
-  // Check if supabase is initialized
   useEffect(() => {
     if (supabase) {
       setIsSupabaseReady(true);
@@ -189,7 +188,7 @@ export default function Chat() {
               className={`mb-3 p-3 rounded-lg ${
                 msg.user_id === userId 
                   ? 'bg-blue-500 text-white ml-auto' 
-                  : 'bg-white border border-gray-200'
+                  : 'bg-black border border-gray-200'
               } max-w-[75%]`}
             >
               <div className="flex justify-between mb-1">
