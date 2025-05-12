@@ -11,12 +11,12 @@ export default function Join() {
         setIsLoading(false)
         setNotFound(false)
 
-        let code = document.getElementById("code") as HTMLInputElement
+        const code = document.getElementById("code") as HTMLInputElement
 
         if (code.value.length <=0) {
             console.log(code)
             console.log("Wrong format")
-            alert("Code field can't be empty")
+            alert("Code field can not be empty")
             return
         }
 
