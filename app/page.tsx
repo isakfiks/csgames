@@ -301,7 +301,7 @@ export default function Home() {
                 whileTap="tap"
               >
                 <FaGoogle className="mr-2 text-[#4285F4]" />
-                {isLoadingGoogle ? "Loading..." : "Login with Google"}
+                <span className="text-[#4285F4] ">{isLoadingGoogle ? "Loading..." : "Login with Google"}</span>
               </motion.button>
             </motion.div>
           )}
