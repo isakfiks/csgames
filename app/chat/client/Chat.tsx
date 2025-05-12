@@ -187,7 +187,7 @@ export default function Chat() {
               key={msg.id} 
               className={`mb-3 p-3 rounded-lg ${
                 msg.user_id === userId 
-                  ? 'bg-blue-500 text-white ml-auto' 
+                  ? 'bg-black-500 text-white ml-auto' 
                   : 'bg-black border border-gray-200'
               } max-w-[75%]`}
             >
