@@ -16,6 +16,7 @@ export default function ChatWidget() {
   const { isChatVisible, toggleChat, hideChat } = useChat();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  
   const [username, setUsername] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
   const [isSupabaseReady, setIsSupabaseReady] = useState(false);
@@ -65,7 +66,7 @@ export default function ChatWidget() {
         } else {
           // Generate anonymous user if not logged in
           setUserId(crypto.randomUUID());
-          setUsername(`Guest${Math.floor(Math.random() * 1000)}`);
+          setUsername(`Anonymous${Math.floor(Math.random() * 1000)}`);
         }
       } catch (error) {
         console.error('Error getting user session:', error);
@@ -192,7 +193,7 @@ export default function ChatWidget() {
       {/* Chat icon button */}
       <button
         onClick={toggleChat}
-        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow-lg flex items-center justify-center transition-all"
+        className="bg-gray-500 hover:bg-gray-600 text-white rounded-full p-3 shadow-lg flex items-center justify-center transition-all"
         aria-label={isChatVisible ? "Close chat" : "Open chat"}
       >
         {isChatVisible ? <FaTimes size={24} /> : <FaComments size={24} />}
@@ -202,7 +203,7 @@ export default function ChatWidget() {
       {isChatVisible && (
         <div className="absolute bottom-16 right-0 w-80 md:w-96 bg-white rounded-lg shadow-xl flex flex-col overflow-hidden transition-all transform origin-bottom-right">
           {/* Chat header */}
-          <div className="bg-blue-500 text-white px-4 py-3 flex justify-between items-center">
+          <div className="bg-slate-600 text-white px-4 py-3 flex justify-between items-center">
             <h3 className="font-medium">Game Chat</h3>
             <button 
               onClick={hideChat}
@@ -229,17 +230,17 @@ export default function ChatWidget() {
                   key={msg.id} 
                   className={`mb-3 p-3 rounded-lg ${
                     msg.user_id === userId 
-                      ? 'bg-blue-500 text-white ml-auto' 
-                      : 'bg-gray-100'
+                      ? 'bg-gray-100 text-white ml-auto' 
+                      : 'bg-slate-300'
                   } max-w-[80%] ${msg.user_id === userId ? 'ml-auto' : 'mr-auto'}`}
                 >
                   <div className="flex justify-between mb-1 text-xs">
-                    <span className="font-medium">{msg.username}</span>
-                    <span className="opacity-70">
+                    <span className="text-black font-bold">{msg.username}</span>
+                    <span className="text-black opacity-70">
                       {formatTime(msg.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm">{msg.message}</p>
+                  <p className="text-slate-600 text-sm">{msg.message}</p>
                 </div>
               ))
             )}
@@ -253,11 +254,11 @@ export default function ChatWidget() {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 p-2 border border-gray-300 rounded-md text-sm"
+              className="flex-1 p-2 border border-gray-300 rounded-md text-black"
             />
             <button 
               type="submit" 
-              className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm"
+              className="px-3 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-600 text-sm"
               disabled={!newMessage.trim() || !supabase}
             >
               Send
