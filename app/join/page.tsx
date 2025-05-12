@@ -35,7 +35,7 @@ return (
 
         <h1 className="mb-2 text-xl font-bold">Enter Code</h1>
         <div className="flex justify-center">
-        <h1 className="opacity-90">if you don't have a code, go to </h1><Link href="/explore"><h1 className="opacity-90 ml-1 text-slate-500">explore</h1></Link>
+        <h1 className="opacity-90">if you don&apos;t have a code, go to </h1><Link href="/explore"><h1 className="opacity-90 ml-1 text-slate-500">explore</h1></Link>
         </div>
         <input id="code"  placeholder="1234.." className="mt-8 rounded-lg p-3 text-black border-black border-2"></input>
         <button onClick={joinGame} className="bg-stone-700 p-3 text-white rounded-lg border-black border-2 ml-2">{isLoading ? "Joining.." : "Join"}</button>
