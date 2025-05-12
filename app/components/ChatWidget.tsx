@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { FaComments, FaTimes } from 'react-icons/fa';
 import { supabase } from '../lib/supabaseClient';
-import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
 import { useChat } from '../contexts/ChatContext';
 

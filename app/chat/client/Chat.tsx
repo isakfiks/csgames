@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase';
 
 // Define types based on the Database type
