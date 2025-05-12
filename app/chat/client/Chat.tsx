@@ -15,7 +15,6 @@ export default function Chat() {
   const [newMessage, setNewMessage] = useState('');
   const [username, setUsername] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
-  const [user, setUser] = useState<User | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSupabaseReady, setIsSupabaseReady] = useState<boolean>(false);
 
@@ -36,7 +35,6 @@ export default function Chat() {
       try {
         const { data: { session } } = await supabase!.auth.getSession();
         const currentUser = session?.user || null;
-        setUser(currentUser);
         
         if (currentUser) {
           setUserId(currentUser.id);
@@ -63,7 +61,6 @@ export default function Chat() {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         (_event: AuthChangeEvent, session: Session | null) => {
           const currentUser = session?.user || null;
-          setUser(currentUser);
           
           if (currentUser) {
             setUserId(currentUser.id);
