@@ -10,6 +10,8 @@ const supabase = createClientComponentClient()
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingDiscord, setIsLoadingDiscord] = useState(false)
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [showAboutModal, setShowAboutModal] = useState(false)
 
@@ -37,6 +39,7 @@ export default function Home() {
   async function signInWithDiscord() {
     try {
       setIsLoading(true)
+      setIsLoadingDiscord(true)
 
       // Use the api
       const response = await fetch("/auth/login", {
@@ -58,7 +61,7 @@ export default function Home() {
     } catch (error) {
       console.error("Login error:", error)
       alert("Failed to login with Discord. Please try again.")
-    } finally {
+    } finally { 
       setIsLoading(false)
     }
   }
@@ -66,6 +69,7 @@ export default function Home() {
   async function signInWithGoogle() {
     try {
       setIsLoading(true)
+      setIsLoadingGoogle(true)
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -73,7 +77,7 @@ export default function Home() {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       })
-
+      
       console.log(data)
       console.log(error)
       if (error) throw error
@@ -285,7 +289,7 @@ export default function Home() {
                 whileTap="tap"
               >
                 <FaDiscord className="mr-2" />
-                {isLoading ? "Loading..." : "Login with Discord"}
+                {isLoadingDiscord ? "Loading..." : "Login with Discord"}
               </motion.button>
 
               <motion.button
@@ -297,7 +301,7 @@ export default function Home() {
                 whileTap="tap"
               >
                 <FaGoogle className="mr-2 text-[#4285F4]" />
-                <span className="text-black">Login with Google</span>
+                {isLoadingGoogle ? "Loading..." : "Login with Google"}
               </motion.button>
             </motion.div>
           )}
