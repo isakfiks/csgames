@@ -523,7 +523,6 @@ export default function TicTacToeGame({ lobbyId, currentUser }: TicTacToeGamePro
   }
 
   const board = gameState.board || Array(3).fill(Array(3).fill(""))
-  const mySymbol = getPlayerSymbol(currentUser?.id || "")
   const isPlaying = gameState.status === "playing"
 
   return (
@@ -639,11 +638,9 @@ export default function TicTacToeGame({ lobbyId, currentUser }: TicTacToeGamePro
             {Array.isArray(board) && board.length === 3
               ? board.map((row: (string | number)[], rowIndex: number) =>
                   row.map((cell: string | number, colIndex: number) => {
-                    const isLastMoveCell = lastMove?.row === rowIndex && lastMove?.col === colIndex
                     const isWinningCell = isCellInWinningLine(rowIndex, colIndex)
                     const isEmpty = isCellEmpty(cell)
                     const shouldAnimate = shouldAnimateCell(rowIndex, colIndex)
-                    const cellKey = `${rowIndex}-${colIndex}`
 
                     return (
                       <motion.div
