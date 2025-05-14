@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { FaArrowLeft, FaPlus } from "react-icons/fa"
+import { FaArrowLeft, FaPlus, FaTrophy } from "react-icons/fa"
 import { createClientComponentClient, type User } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
 import { motion } from "framer-motion"
@@ -352,6 +352,16 @@ export default function ExplorePage() {
             <h1 className="text-2xl font-bold text-black">CSGames</h1>
             <span className="text-black text-2xl">.dev</span>
           </motion.div>
+          <Link href="/leaderboard">
+            <motion.div
+              className="flex items-center justify-center w-10 h-10 bg-black text-white rounded-full"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              title="Leaderboard"
+            >
+              <FaTrophy />
+            </motion.div>
+          </Link>
         </div>
       </motion.header>
 
