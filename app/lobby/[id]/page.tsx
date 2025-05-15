@@ -7,9 +7,8 @@ import { FaArrowLeft, FaPlay, FaSync } from "react-icons/fa";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import React from "react";
+import GenerateCodeButton from "../../components/GenerateCodeButton";
 import { User } from "@supabase/supabase-js";
-import GenerateCodeButton from "@/comps/generate-code-button"
-
 const supabase = createClientComponentClient();
 
 const POLLING_INTERVAL = 3000;
