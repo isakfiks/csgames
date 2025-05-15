@@ -5,30 +5,44 @@ import Link from "next/link";
 export default function Join() {
     const [isLoading, setIsLoading] = useState(false)
     const [notFound, setNotFound] = useState(false)
+    
+    async function joinGame() {
+    // Refresh values
+    setIsLoading(false)
+    setNotFound(false)
 
-    async function joinGame(){
-        // Refresh values
-        setIsLoading(false)
-        setNotFound(false)
+    const codeInput = document.getElementById("code") as HTMLInputElement
+    const code = codeInput.value.trim()
 
-        const code = document.getElementById("code") as HTMLInputElement
-
-        if (code.value.length <=0) {
-            console.log(code)
-            console.log("Wrong format")
-            alert("Code field can not be empty")
-            return
-        }
-
-        
-        //setIsLoading(true);
-        //setNotFound(true)
-        
-        location.href = "/lobby/"+code.value
+    if (code.length <= 0) {
+      alert("Code field cannot be empty")
+      return
     }
 
+    setIsLoading(true)
+
+    try {
+      // Call the API to convert given code to a lobby ID (if it exists)
+      const response = await fetch(`/api/join-code?code=${encodeURIComponent(code)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setNotFound(true)
+        setIsLoading(false)
+        return
+      }
+
+      // Redirect to the lobby page with the found lobby ID
+      location.href = "/lobby/" + data.lobbyId
+    } catch (error) {
+      console.error("Error joining game:", error)
+      setNotFound(true)
+      setIsLoading(false)
+    }
+  }
+
 return (
-    <div className="bg-gradient-to-b from-white to-gray-50 min-h-screen font-[family-name:var(--font-geist-sans)] relative">
+    <div className="text-black bg-gradient-to-b from-white to-gray-50 min-h-screen font-[family-name:var(--font-geist-sans)] relative">
         
         <div className="place-items-center min-h-screen p-8 flex justify-center">
         <div className="justify-center align-center text-center">
