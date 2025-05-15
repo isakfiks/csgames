@@ -7,12 +7,14 @@ import type { User } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 import ConnectFourGame from "@/app/components/games/connect-four-game"
 import TicTacToeGame from "@/app/components/games/tic-tac-toe-game"
+import MinesweeperGame from "@/app/components/games/minesweep"
 import GameLoading from "@/app/components/games/game-loading"
 import GameError from "@/app/components/games/game-error"
 
 interface Game {
   id: string
   title: string
+  singlePlayer?: boolean
   [key: string]: unknown
 }
 
@@ -101,8 +103,8 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
   return (
     <>
       {game.title === "Connect Four" && <ConnectFourGame lobbyId={lobby.id} currentUser={currentUser} />}
-
       {game.title === "Tic Tac Toe" && <TicTacToeGame lobbyId={lobby.id} currentUser={currentUser} />}
+      {game.title === "Minesweeper" && <MinesweeperGame lobbyId={lobby.id} currentUser={currentUser} />}
     </>
   )
 }

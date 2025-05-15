@@ -25,6 +25,7 @@ type Lobby = {
   player2Id: string | null
   needsPlayer: boolean
   createdAt: string
+  singlePlayer?: boolean
 }
 
 const supabase = createClientComponentClient()
@@ -37,6 +38,7 @@ const currentGames = [
     description: "Vertical strategy game where players drop colored discs.",
     image: "/placeholder.svg?height=200&width=300",
     players: "2 players",
+    singlePlayer: false,
   },
   {
     id: 1,
@@ -44,6 +46,7 @@ const currentGames = [
     description: "Classic strategy board game for two players.",
     image: "/placeholder.svg?height=200&width=300",
     players: "2 players",
+    singlePlayer: false,
   },
   {
     id: 2,
@@ -51,12 +54,23 @@ const currentGames = [
     description: "Simple game of X's and O's on a 3x3 grid.",
     image: "/placeholder.svg?height=200&width=300",
     players: "2 players",
+    singlePlayer: false,
   },
   {
     id: 4,
     title: "Battleship",
     description: "Naval combat strategy game with hidden ship placement.",
     image: "/placeholder.svg?height=200&width=300",
+    players: "2 players",
+    singlePlayer: false,
+  },
+  {
+    id: 5,
+    title: "Minesweeper",
+    description: "Classic puzzle game where you clear a minefield without detonating any mines.",
+    image: "/placeholder.svg?height=200&width=300",
+    players: "1 player",
+    singlePlayer: true,
   },
 ]
 
@@ -160,11 +174,21 @@ export default function ExplorePage() {
     checkUserAndUsername()
   }, [])
 
-  async function fetchActiveLobbies() {
+  async function fetchActiveLobbiesWithoutRPC() {
     try {
-      console.log("Fetching active lobbies...")
+      console.log("Falling back to direct query method...")
 
-      // Get lobbies with game states that are waiting for more plrs
+      // First, get all games to have their data available
+      const { data: allGames, error: gamesError } = await supabase.from("games").select("id, title, singlePlayer")
+
+      if (gamesError) {
+        console.error("Error fetching games:", gamesError)
+        return
+      }
+
+      console.log("All games data:", allGames)
+
+      // Get lobbies with game states that are waiting for more players
       const { data, error } = await supabase
         .from("game_states")
         .select(`
@@ -189,8 +213,6 @@ export default function ExplorePage() {
         return
       }
 
-      console.log("Active lobbies data:", data)
-
       if (!data || data.length === 0) {
         setActiveLobbies([])
         return
@@ -202,46 +224,89 @@ export default function ExplorePage() {
       let playerProfiles: { id: string; username: string | null }[] = []
       if (playerIds.length > 0) {
         const { data: profiles } = await supabase.from("profiles").select("id, username").in("id", playerIds)
-
         playerProfiles = profiles || []
       }
 
-      // Get game info
-      const gameIds = [...new Set(data.map((gs) => gs.lobbies?.[0]?.game_id).filter(Boolean))]
+      // Process lobbies and filter out single-player games
+      const processedLobbies: Lobby[] = []
 
-      interface Game {
-        id: number
-        title: string
-      }
-      let games: Game[] = []
-      if (gameIds.length > 0) {
-        const { data: gamesData } = await supabase.from("games").select("id, title").in("id", gameIds)
+      for (const gs of data) {
+        const gameId = gs.lobbies?.[0]?.game_id
 
-        games = gamesData || []
-      }
+        // Find the game in our fetched games data
+        const game = allGames.find((g) => Number(g.id) === Number(gameId))
 
-      // Combine data
-      const lobbies = data.map((gs) => {
-        const game = games.find((g) => g.id === gs.lobbies?.[0]?.game_id)
+        // Skip this lobby if it's a single-player game
+        if (game?.singlePlayer === true) {
+          console.log(`Filtering out single-player game: ${game.title} (ID: ${game.id})`)
+          continue
+        }
+
         const player1 = playerProfiles.find((p) => p.id === gs.player1)
 
-        return {
+        processedLobbies.push({
           id: gs.lobby_id,
           gameStateId: gs.id,
-          gameId: gs.lobbies?.[0]?.game_id,
-          gameTitle: game?.title || "Connect Four", // Default to Connect Four if game not found
+          gameId: gameId,
+          gameTitle: game?.title || "Unknown Game",
           player1: player1?.username || "Unknown Player",
           player1Id: gs.player1,
           player2Id: gs.player2,
           needsPlayer: !gs.player2,
           createdAt: gs.lobbies?.[0]?.created_at,
-        }
-      })
+          singlePlayer: false, // We've already filtered out single-player games
+        })
+      }
+
+      console.log("Processed lobbies:", processedLobbies)
+      setActiveLobbies(processedLobbies)
+    } catch (err) {
+      console.error("Error in fetchActiveLobbiesWithoutRPC:", err)
+    }
+  }
+
+  // Fall back
+  async function fetchActiveLobbies() {
+    try {
+      console.log("Fetching active lobbies with direct query...")
+
+      // Use a direct SQL query to get only multiplayer game lobbies with all the data we need
+      const { data, error } = await supabase.rpc("get_active_multiplayer_lobbies")
+
+      if (error) {
+        console.error("Error fetching active lobbies:", error)
+        // Fall back to the original method
+        await fetchActiveLobbiesWithoutRPC()
+        return
+      }
+
+      console.log("Active lobbies data from RPC:", data)
+
+      if (!data || data.length === 0) {
+        setActiveLobbies([])
+        return
+      }
+
+      // Transform the data into our Lobby type
+      const lobbies = data.map((item: any) => ({
+        id: item.lobby_id,
+        gameStateId: item.game_state_id,
+        gameId: item.game_id,
+        gameTitle: item.game_title,
+        player1: item.player1_username || "Unknown Player",
+        player1Id: item.player1_id,
+        player2Id: item.player2_id,
+        needsPlayer: !item.player2_id,
+        createdAt: item.created_at,
+        singlePlayer: false, // We're only getting multiplayer games from the query
+      }))
 
       console.log("Processed lobbies:", lobbies)
       setActiveLobbies(lobbies)
     } catch (err) {
       console.error("Error in fetchActiveLobbies:", err)
+      // Fall back to the original method
+      await fetchActiveLobbiesWithoutRPC()
     }
   }
 
@@ -257,6 +322,7 @@ export default function ExplorePage() {
     })
   }
 
+  // Update the createLobby function to handle single-player games
   async function createLobby(gameId: number) {
     if (!user) {
       // Redirect to login if the user isnt authed
@@ -270,6 +336,9 @@ export default function ExplorePage() {
       return
     }
 
+    // Find the game to check if it's single-player
+    const game = currentGames.find((g) => g.id === gameId)
+
     try {
       // Use the new function to create a lobby with game state in one go
       const { data, error } = await supabase.rpc("create_lobby_with_game_state", { game_id: gameId })
@@ -280,8 +349,13 @@ export default function ExplorePage() {
         return
       }
 
-      // Redirect to the lobby page
-      window.location.href = `/lobby/${data}`
+      // For single-player games, go directly to the game page
+      if (game?.singlePlayer) {
+        window.location.href = `/game/${data}`
+      } else {
+        // For multiplayer games, go to the lobby page
+        window.location.href = `/lobby/${data}`
+      }
     } catch (err) {
       console.error("Error creating lobby:", err)
       alert("Failed to create lobby. Please try again.")

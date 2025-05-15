@@ -9,6 +9,7 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import React from "react";
 import { User } from "@supabase/supabase-js";
 import GenerateCodeButton from "@/comps/generate-code-button"
+
 const supabase = createClientComponentClient();
 
 const POLLING_INTERVAL = 3000;
@@ -33,6 +34,7 @@ interface Game {
   id: string;
   title: string;
   [key: string]: unknown;
+  singlePlayer?: boolean;
 }
 
 interface Player {
@@ -115,6 +117,12 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
           if (gameError) throw gameError;
           if (isActive) setGame(gameData);
+
+          // If it's a single-player game, redirect directly to the game page
+          if (gameData?.singlePlayer) {
+            router.push(`/game/${resolvedParams.id}`);
+            return;
+          }
         }
 
         // Fetch game state
@@ -250,7 +258,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
         console.error("Error fetching player profiles:", error);
         return;
       }
-
       setPlayers(data || []);
     } catch (err: unknown) {
       console.error("Error in fetchPlayerProfiles:", err);
@@ -259,6 +266,12 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
   async function refreshLobbyData() {
     try {
+      // Check if the game is single-player
+      if (game?.singlePlayer) {
+        router.push(`/game/${resolvedParams.id}`);
+        return;
+      }
+
       const { data: gameStateData, error: gameStateError } = await supabase
         .from("game_states")
         .select("*")
@@ -286,7 +299,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           fetchPlayerProfiles(playerIds);
         }
       }
-
     } catch (err: unknown) {
       console.error("Error in refreshLobbyData:", err);
     }
