@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import type React from "react"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
@@ -9,18 +11,32 @@ import type { User } from "@supabase/supabase-js"
 // Basic types for our Minesweeper game
 type CellValue = number | "mine"
 type CellState = "hidden" | "revealed" | "flagged"
+type GameDifficulty = "beginner" | "intermediate" | "expert"
 
 interface Cell {
   value: CellValue
   state: CellState
 }
 
-// Initial difficulty settings
+// Difficulty settings
 const DIFFICULTY = {
   beginner: {
     rows: 9,
     cols: 9,
     mines: 10,
+    name: "Beginner",
+  },
+  intermediate: {
+    rows: 16,
+    cols: 16,
+    mines: 40,
+    name: "Intermediate",
+  },
+  expert: {
+    rows: 16,
+    cols: 30,
+    mines: 99,
+    name: "Expert",
   },
 }
 
@@ -56,15 +72,17 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
   const supabase = createClientComponentClient()
   const [grid, setGrid] = useState<Cell[][]>([])
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">("playing")
+  const [difficulty, setDifficulty] = useState<GameDifficulty>("beginner")
   const [minesLeft, setMinesLeft] = useState(DIFFICULTY.beginner.mines)
   const [startTime, setStartTime] = useState<number | null>(null)
   const [time, setTime] = useState(0)
+  const [firstClick, setFirstClick] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Initialize the game
   useEffect(() => {
     initializeGame()
-  }, [])
+  }, [difficulty])
 
   // Timer logic
   useEffect(() => {
@@ -83,7 +101,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
 
   // Initialize a new game
   const initializeGame = () => {
-    const { rows, cols, mines } = DIFFICULTY.beginner
+    const { rows, cols, mines } = DIFFICULTY[difficulty]
 
     // Create empty grid
     const newGrid: Cell[][] = Array(rows)
@@ -97,13 +115,29 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
           })),
       )
 
+    setGrid(newGrid)
+    setGameStatus("playing")
+    setMinesLeft(mines)
+    setStartTime(null)
+    setTime(0)
+    setFirstClick(true)
+  }
+
+  // Place mines after first click to ensure first click is never a mine
+  const placeMines = (grid: Cell[][], firstRow: number, firstCol: number) => {
+    const { rows, cols, mines } = DIFFICULTY[difficulty]
+    const newGrid = [...grid]
+
     // Place mines randomly
     let minesPlaced = 0
     while (minesPlaced < mines) {
       const row = Math.floor(Math.random() * rows)
       const col = Math.floor(Math.random() * cols)
 
-      if (newGrid[row][col].value !== "mine") {
+      // Don't place mine on first click or adjacent cells
+      const isFirstClickArea = Math.abs(row - firstRow) <= 1 && Math.abs(col - firstCol) <= 1
+
+      if (!isFirstClickArea && newGrid[row][col].value !== "mine") {
         newGrid[row][col].value = "mine"
         minesPlaced++
 
@@ -118,11 +152,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
       }
     }
 
-    setGrid(newGrid)
-    setGameStatus("playing")
-    setMinesLeft(mines)
-    setStartTime(null)
-    setTime(0)
+    return newGrid
   }
 
   // Handle cell click
@@ -136,7 +166,13 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
       setStartTime(Date.now())
     }
 
-    const newGrid = [...grid]
+    let newGrid = [...grid]
+
+    // On first click, place mines ensuring first click is safe
+    if (firstClick) {
+      newGrid = placeMines(newGrid, row, col)
+      setFirstClick(false)
+    }
 
     // If clicked on a mine, game over
     if (newGrid[row][col].value === "mine") {
@@ -151,6 +187,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     // Check if player has won
     if (checkWinCondition(newGrid)) {
       setGameStatus("won")
+      flagAllMines(newGrid)
     }
 
     setGrid(newGrid)
@@ -179,7 +216,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
 
   // Reveal a cell and its adjacent cells if it's empty
   const revealCell = (grid: Cell[][], row: number, col: number) => {
-    const { rows, cols } = DIFFICULTY.beginner
+    const { rows, cols } = DIFFICULTY[difficulty]
 
     if (row < 0 || row >= rows || col < 0 || col >= cols || grid[row][col].state !== "hidden") {
       return
@@ -206,6 +243,18 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
         }
       }
     }
+  }
+
+  // Flag all mines when game is won
+  const flagAllMines = (grid: Cell[][]) => {
+    for (let row = 0; row < grid.length; row++) {
+      for (let col = 0; col < grid[0].length; col++) {
+        if (grid[row][col].value === "mine" && grid[row][col].state !== "flagged") {
+          grid[row][col].state = "flagged"
+        }
+      }
+    }
+    setMinesLeft(0)
   }
 
   // Check if player has won
@@ -266,6 +315,11 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     return colors[cell.value as number] || ""
   }
 
+  // Handle difficulty change
+  const handleDifficultyChange = (newDifficulty: GameDifficulty) => {
+    setDifficulty(newDifficulty)
+  }
+
   const handleManualRefresh = () => {
     setIsRefreshing(true)
     setTimeout(() => setIsRefreshing(false), 500)
@@ -302,6 +356,20 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
               <FaSync className="text-black" />
             </button>
           </div>
+        </div>
+
+        <div className="flex justify-center gap-2 mb-4">
+          {(Object.keys(DIFFICULTY) as GameDifficulty[]).map((diff) => (
+            <button
+              key={diff}
+              onClick={() => handleDifficultyChange(diff)}
+              className={`px-3 py-1 rounded transition-colors ${
+                difficulty === diff ? "bg-black text-white" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+            >
+              {DIFFICULTY[diff].name}
+            </button>
+          ))}
         </div>
 
         <div className="flex justify-between items-center w-full max-w-md mx-auto mb-4 bg-gray-100 p-3 rounded-lg">
@@ -348,23 +416,27 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
               boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             }}
           >
-            {grid.map((row, rowIndex) => (
-              <div key={rowIndex} className="flex">
-                {row.map((cell, colIndex) => (
-                  <button
-                    key={`${rowIndex}-${colIndex}`}
-                    className={`w-8 h-8 flex items-center justify-center border border-gray-300 font-bold ${
-                      cell.state === "hidden" ? "bg-gray-300 hover:bg-gray-400" : "bg-gray-100"
-                    } ${getCellColor(cell)} transition-colors`}
-                    onClick={() => handleCellClick(rowIndex, colIndex)}
-                    onContextMenu={(e) => handleCellRightClick(e, rowIndex, colIndex)}
-                    disabled={gameStatus !== "playing"}
-                  >
-                    {getCellContent(cell)}
-                  </button>
+            <div className="overflow-auto max-w-full">
+              <div className="min-w-max">
+                {grid.map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex">
+                    {row.map((cell, colIndex) => (
+                      <button
+                        key={`${rowIndex}-${colIndex}`}
+                        className={`w-8 h-8 flex items-center justify-center border border-gray-300 font-bold ${
+                          cell.state === "hidden" ? "bg-gray-300 hover:bg-gray-400" : "bg-gray-100"
+                        } ${getCellColor(cell)} transition-colors`}
+                        onClick={() => handleCellClick(rowIndex, colIndex)}
+                        onContextMenu={(e) => handleCellRightClick(e, rowIndex, colIndex)}
+                        disabled={gameStatus !== "playing"}
+                      >
+                        {getCellContent(cell)}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
