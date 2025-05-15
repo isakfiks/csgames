@@ -28,8 +28,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 export function useChat() {
   const context = useContext(ChatContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useChat must be used within a ChatProvider');
   }
-  return context;
+  return context; 
 }
