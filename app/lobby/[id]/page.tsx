@@ -8,6 +8,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import React from "react";
 import { User } from "@supabase/supabase-js";
+import GenerateCodeButton from "@/comps/generate-code-button"
 const supabase = createClientComponentClient();
 
 const POLLING_INTERVAL = 3000;
@@ -395,6 +396,19 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
             <p className="text-black mb-2">
               <strong>Status:</strong> {gameState?.status || "Waiting for players"}
             </p>
+            <div className="mb-6">
+              <p className="text-black mb-2">
+                <strong>Created by:</strong> {getPlayerName(gameState?.player1)}
+              </p>
+
+              {isCreator && (
+                <div className="mt-4 p-4 border-2 border-black rounded-lg bg-gray-50">
+                  <h3 className="text-lg font-bold mb-2">Invitation Code</h3>
+                  <p className="text-sm mb-3">Generate a short code that others can use to join this lobby.</p>
+                  <GenerateCodeButton lobbyId={resolvedParams.id} />
+                </div>
+              )}
+            </div>
             <p className="text-black">
               <strong>Created by:</strong> {getPlayerName(gameState?.player1)}
             </p>
