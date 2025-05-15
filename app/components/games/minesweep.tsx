@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
+import { FaArrowLeft, FaRedo, FaSync, FaChartBar } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 
@@ -16,6 +16,9 @@ type GameDifficulty = "beginner" | "intermediate" | "expert"
 interface Cell {
   value: CellValue
   state: CellState
+  exploded?: boolean
+  x: number
+  y: number
 }
 
 // Difficulty settings
@@ -38,6 +41,13 @@ const DIFFICULTY = {
     mines: 99,
     name: "Expert",
   },
+}
+
+// Emoji faces for game status
+const FACES = {
+  playing: "😊",
+  won: "😎",
+  lost: "😵",
 }
 
 function GameLoading() {
@@ -77,7 +87,15 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
   const [startTime, setStartTime] = useState<number | null>(null)
   const [time, setTime] = useState(0)
   const [firstClick, setFirstClick] = useState(true)
+  const [gameStats, setGameStats] = useState({
+    beginner: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+    intermediate: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+    expert: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+  })
+  const [showStats, setShowStats] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
+  const [lastMoveTime, setLastMoveTime] = useState<number>(0)
 
   // Initialize the game
   useEffect(() => {
@@ -99,19 +117,35 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     }
   }, [startTime, gameStatus])
 
+  // Load game stats from localStorage
+  useEffect(() => {
+    const savedStats = localStorage.getItem("minesweeperStats")
+    if (savedStats) {
+      setGameStats(JSON.parse(savedStats))
+    }
+  }, [])
+
+  // Save game stats to localStorage
+  const saveGameStats = useCallback((stats: typeof gameStats) => {
+    localStorage.setItem("minesweeperStats", JSON.stringify(stats))
+    setGameStats(stats)
+  }, [])
+
   // Initialize a new game
-  const initializeGame = () => {
+  const initializeGame = useCallback(() => {
     const { rows, cols, mines } = DIFFICULTY[difficulty]
 
     // Create empty grid
     const newGrid: Cell[][] = Array(rows)
       .fill(null)
-      .map(() =>
+      .map((_, rowIndex) =>
         Array(cols)
           .fill(null)
-          .map(() => ({
+          .map((_, colIndex) => ({
             value: 0,
             state: "hidden",
+            x: colIndex,
+            y: rowIndex,
           })),
       )
 
@@ -121,98 +155,134 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     setStartTime(null)
     setTime(0)
     setFirstClick(true)
-  }
+    setLastMoveTime(Date.now())
+  }, [difficulty])
 
   // Place mines after first click to ensure first click is never a mine
-  const placeMines = (grid: Cell[][], firstRow: number, firstCol: number) => {
-    const { rows, cols, mines } = DIFFICULTY[difficulty]
-    const newGrid = [...grid]
+  const placeMines = useCallback(
+    (grid: Cell[][], firstRow: number, firstCol: number) => {
+      const { rows, cols, mines } = DIFFICULTY[difficulty]
+      const newGrid = JSON.parse(JSON.stringify(grid)) as Cell[][]
 
-    // Place mines randomly
-    let minesPlaced = 0
-    while (minesPlaced < mines) {
-      const row = Math.floor(Math.random() * rows)
-      const col = Math.floor(Math.random() * cols)
+      // Place mines randomly
+      let minesPlaced = 0
+      while (minesPlaced < mines) {
+        const row = Math.floor(Math.random() * rows)
+        const col = Math.floor(Math.random() * cols)
 
-      // Don't place mine on first click or adjacent cells
-      const isFirstClickArea = Math.abs(row - firstRow) <= 1 && Math.abs(col - firstCol) <= 1
+        // Don't place mine on first click or adjacent cells
+        const isFirstClickArea = Math.abs(row - firstRow) <= 1 && Math.abs(col - firstCol) <= 1
 
-      if (!isFirstClickArea && newGrid[row][col].value !== "mine") {
-        newGrid[row][col].value = "mine"
-        minesPlaced++
+        if (!isFirstClickArea && newGrid[row][col].value !== "mine") {
+          newGrid[row][col].value = "mine"
+          minesPlaced++
 
-        // Update adjacent cell values
-        for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
-          for (let c = Math.max(0, col - 1); c <= Math.min(cols - 1, col + 1); c++) {
-            if (newGrid[r][c].value !== "mine") {
-              newGrid[r][c].value = (newGrid[r][c].value as number) + 1
+          // Update adjacent cell values
+          for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
+            for (let c = Math.max(0, col - 1); c <= Math.min(cols - 1, col + 1); c++) {
+              if (newGrid[r][c].value !== "mine") {
+                newGrid[r][c].value = (newGrid[r][c].value as number) + 1
+              }
             }
           }
         }
       }
-    }
 
-    return newGrid
-  }
+      return newGrid
+    },
+    [difficulty],
+  )
 
   // Handle cell click
-  const handleCellClick = (row: number, col: number) => {
-    if (gameStatus !== "playing" || grid[row][col].state !== "hidden") {
-      return
-    }
+  const handleCellClick = useCallback(
+    (row: number, col: number) => {
+      if (gameStatus !== "playing" || grid[row][col].state !== "hidden") {
+        return
+      }
 
-    // Start timer on first click
-    if (startTime === null) {
-      setStartTime(Date.now())
-    }
+      // Start timer on first click
+      if (startTime === null) {
+        setStartTime(Date.now())
+      }
 
-    let newGrid = [...grid]
+      let newGrid = [...grid.map((row) => [...row])]
 
-    // On first click, place mines ensuring first click is safe
-    if (firstClick) {
-      newGrid = placeMines(newGrid, row, col)
-      setFirstClick(false)
-    }
+      // On first click, place mines ensuring first click is safe
+      if (firstClick) {
+        newGrid = placeMines(newGrid, row, col)
+        setFirstClick(false)
+      }
 
-    // If clicked on a mine, game over
-    if (newGrid[row][col].value === "mine") {
-      revealAllMines(newGrid)
-      setGameStatus("lost")
-      return
-    }
+      // If clicked on a mine, game over
+      if (newGrid[row][col].value === "mine") {
+        newGrid[row][col].exploded = true
+        revealAllMines(newGrid)
+        setGameStatus("lost")
 
-    // Reveal the clicked cell
-    revealCell(newGrid, row, col)
+        // Update stats
+        const newStats = {
+          ...gameStats,
+          [difficulty]: {
+            ...gameStats[difficulty],
+            gamesPlayed: gameStats[difficulty].gamesPlayed + 1,
+          },
+        }
+        saveGameStats(newStats)
 
-    // Check if player has won
-    if (checkWinCondition(newGrid)) {
-      setGameStatus("won")
-      flagAllMines(newGrid)
-    }
+        return
+      }
 
-    setGrid(newGrid)
-  }
+      // Reveal the clicked cell
+      revealCell(newGrid, row, col)
+
+      // Check if player has won
+      if (checkWinCondition(newGrid)) {
+        setGameStatus("won")
+        flagAllMines(newGrid)
+
+        // Update stats
+        const currentTime = Math.floor((Date.now() - (startTime || Date.now())) / 1000)
+        const newStats = {
+          ...gameStats,
+          [difficulty]: {
+            gamesPlayed: gameStats[difficulty].gamesPlayed + 1,
+            gamesWon: gameStats[difficulty].gamesWon + 1,
+            bestTime: Math.min(gameStats[difficulty].bestTime, currentTime),
+          },
+        }
+        saveGameStats(newStats)
+      }
+
+      setGrid(newGrid)
+      setLastMoveTime(Date.now())
+    },
+    [gameStatus, grid, firstClick, startTime, difficulty, gameStats, placeMines, saveGameStats],
+  )
 
   // Handle right-click (flag)
-  const handleCellRightClick = (e: React.MouseEvent, row: number, col: number) => {
-    e.preventDefault()
+  const handleCellRightClick = useCallback(
+    (e: React.MouseEvent, row: number, col: number) => {
+      e.preventDefault()
 
-    if (gameStatus !== "playing" || grid[row][col].state === "revealed") {
-      return
-    }
+      if (gameStatus !== "playing" || grid[row][col].state === "revealed") {
+        return
+      }
 
-    const newGrid = [...grid]
+      const newGrid = [...grid.map((row) => [...row])]
 
-    if (newGrid[row][col].state === "hidden") {
-      newGrid[row][col].state = "flagged"
-      setMinesLeft(minesLeft - 1)
-    } else {
-      newGrid[row][col].state = "hidden"
-      setMinesLeft(minesLeft + 1)
-    }
+      if (newGrid[row][col].state === "hidden") {
+        newGrid[row][col].state = "flagged"
+        setMinesLeft((prev) => prev - 1)
+      } else {
+        newGrid[row][col].state = "hidden"
+        setMinesLeft((prev) => prev + 1)
+      }
 
-    setGrid(newGrid)
-  }
+      setGrid(newGrid)
+      setLastMoveTime(Date.now())
+    },
+    [gameStatus, grid],
+  )
 
   // Reveal a cell and its adjacent cells if it's empty
   const revealCell = (grid: Cell[][], row: number, col: number) => {
@@ -240,6 +310,10 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
       for (let col = 0; col < grid[0].length; col++) {
         if (grid[row][col].value === "mine") {
           grid[row][col].state = "revealed"
+        } else if (grid[row][col].state === "flagged" && grid[row][col].value !== "mine") {
+          // Show incorrectly flagged cells
+          grid[row][col].state = "revealed"
+          grid[row][col].exploded = true
         }
       }
     }
@@ -280,7 +354,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     }
 
     if (cell.value === "mine") {
-      return "💣"
+      return cell.exploded ? "💥" : "💣"
     }
 
     return cell.value > 0 ? cell.value : null
@@ -293,7 +367,7 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
     }
 
     if (cell.value === "mine") {
-      return "bg-red-500"
+      return cell.exploded ? "bg-red-600" : "bg-red-500"
     }
 
     if (cell.value === 0) {
@@ -316,13 +390,24 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
   }
 
   // Handle difficulty change
-  const handleDifficultyChange = (newDifficulty: GameDifficulty) => {
+  const handleDifficultyChange = useCallback((newDifficulty: GameDifficulty) => {
     setDifficulty(newDifficulty)
-  }
+  }, [])
 
   const handleManualRefresh = () => {
     setIsRefreshing(true)
     setTimeout(() => setIsRefreshing(false), 500)
+  }
+
+  // Toggle stats display
+  const toggleStats = useCallback(() => {
+    setShowStats((prev) => !prev)
+  }, [])
+
+  // Calculate total stats
+  const totalStats = {
+    gamesPlayed: gameStats.beginner.gamesPlayed + gameStats.intermediate.gamesPlayed + gameStats.expert.gamesPlayed,
+    gamesWon: gameStats.beginner.gamesWon + gameStats.intermediate.gamesWon + gameStats.expert.gamesWon,
   }
 
   return (
@@ -345,6 +430,13 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2 md:mb-0">Minesweeper</h2>
 
           <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleStats}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+              aria-label="Show stats"
+            >
+              <FaChartBar className="text-black" />
+            </button>
             <button
               onClick={handleManualRefresh}
               className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${
@@ -373,19 +465,21 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
         </div>
 
         <div className="flex justify-between items-center w-full max-w-md mx-auto mb-4 bg-gray-100 p-3 rounded-lg">
-          <div className="bg-black text-white px-3 py-1 rounded font-mono">{minesLeft}</div>
+          <div className="bg-black text-white px-3 py-1 rounded font-mono">{minesLeft.toString().padStart(3, "0")}</div>
           <button
             onClick={initializeGame}
-            className="bg-black text-white px-3 py-1 rounded hover:bg-gray-800 transition-colors"
+            className="bg-gray-200 hover:bg-gray-300 text-black px-3 py-1 rounded-full w-10 h-10 flex items-center justify-center text-xl"
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
           >
-            New Game
+            {isHovering ? "🔄" : FACES[gameStatus]}
           </button>
-          <div className="bg-black text-white px-3 py-1 rounded font-mono">{time}s</div>
+          <div className="bg-black text-white px-3 py-1 rounded font-mono">{time.toString().padStart(3, "0")}</div>
         </div>
 
         {gameStatus === "won" && (
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-center">
-            <p className="text-lg font-bold text-green-600">You won! 🎉</p>
+          <div className="mb-6 p-4 bg-green-100 rounded-lg text-center">
+            <p className="text-lg font-bold text-green-600">You won! 🎉 Time: {time}s</p>
             <button
               onClick={initializeGame}
               className="mt-2 bg-black text-white px-4 py-2 rounded-lg flex items-center mx-auto"
@@ -397,8 +491,8 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
         )}
 
         {gameStatus === "lost" && (
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-center">
-            <p className="text-lg font-bold text-red-600">Game Over! 💥</p>
+          <div className="mb-6 p-4 bg-red-100 rounded-lg text-center">
+            <p className="text-lg font-bold text-red-600">Game Over! 💥 Better luck next time!</p>
             <button
               onClick={initializeGame}
               className="mt-2 bg-black text-white px-4 py-2 rounded-lg flex items-center mx-auto"
@@ -409,12 +503,65 @@ export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: str
           </div>
         )}
 
+        {showStats && (
+          <div className="mb-6 p-4 bg-gray-100 rounded-lg">
+            <h3 className="font-bold mb-2">Game Statistics</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(Object.keys(DIFFICULTY) as GameDifficulty[]).map((diff) => (
+                <div key={diff} className="p-3 bg-white rounded-lg shadow">
+                  <h4 className="font-bold mb-2">{DIFFICULTY[diff].name}</h4>
+                  <p>Games Played: {gameStats[diff].gamesPlayed}</p>
+                  <p>Games Won: {gameStats[diff].gamesWon}</p>
+                  <p>
+                    Win Rate:{" "}
+                    {gameStats[diff].gamesPlayed > 0
+                      ? Math.round((gameStats[diff].gamesWon / gameStats[diff].gamesPlayed) * 100)
+                      : 0}
+                    %
+                  </p>
+                  <p>
+                    Best Time:{" "}
+                    {gameStats[diff].bestTime !== Number.POSITIVE_INFINITY ? `${gameStats[diff].bestTime}s` : "N/A"}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-3 bg-black text-white rounded-lg">
+              <h4 className="font-bold mb-2">Overall</h4>
+              <p>Total Games: {totalStats.gamesPlayed}</p>
+              <p>Total Wins: {totalStats.gamesWon}</p>
+              <p>
+                Overall Win Rate:{" "}
+                {totalStats.gamesPlayed > 0 ? Math.round((totalStats.gamesWon / totalStats.gamesPlayed) * 100) : 0}%
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                if (confirm("Are you sure you want to reset all statistics?")) {
+                  const resetStats = {
+                    beginner: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+                    intermediate: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+                    expert: { gamesPlayed: 0, gamesWon: 0, bestTime: Number.POSITIVE_INFINITY },
+                  }
+                  saveGameStats(resetStats)
+                }
+              }}
+              className="mt-4 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+            >
+              Reset Stats
+            </button>
+          </div>
+        )}
+
         <div className="flex justify-center">
           <div
-            className="border-2 border-gray-400 inline-block rounded-lg overflow-hidden"
+            className="border-2 border-gray-400 inline-block rounded-lg overflow-hidden bg-gray-100 p-2"
             style={{
               boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             }}
+            key={`board-${lastMoveTime}`}
           >
             <div className="overflow-auto max-w-full">
               <div className="min-w-max">
