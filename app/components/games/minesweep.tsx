@@ -50,36 +50,7 @@ const FACES = {
   lost: "😵",
 }
 
-function GameLoading() {
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-white">
-      <div className="text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-black border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-        <p className="mt-4 text-lg font-medium text-gray-700">Loading game...</p>
-      </div>
-    </div>
-  )
-}
-
-function GameError({ error }: { error: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
-      <div className="text-center max-w-md">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-        <p className="text-gray-700 mb-6">{error}</p>
-        <Link
-          href="/explore"
-          className="inline-block bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          Return to Games
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: string; currentUser: User | null }) {
-  const supabase = createClientComponentClient()
   const [grid, setGrid] = useState<Cell[][]>([])
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">("playing")
   const [difficulty, setDifficulty] = useState<GameDifficulty>("beginner")

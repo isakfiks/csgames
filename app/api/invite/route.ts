@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
       .eq('id', lobbyId)
       .single();
 
+      console.log('Lobby exists: ' + lobby)
+
     if (lobbyError) {
       console.error('Error checking lobby:', lobbyError);
       return NextResponse.json(
@@ -50,6 +52,8 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
+
+      console.log("Invite has been made, code: " + invite)
 
     if (inviteError) {
       console.error('Error creating invite code:', inviteError);
