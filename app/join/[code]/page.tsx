@@ -11,7 +11,7 @@ interface JoinResponse {
   lobbyUrl: string;
 }
 
-export default function JoinPage({ params }: { params: { code: string } }) {
+export default function JoinPage(params: { code: string }) {
   const { code } = params;
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
