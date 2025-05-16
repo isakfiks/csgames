@@ -287,8 +287,20 @@ export default function ExplorePage() {
         return
       }
 
+      //  Had to make a custom one for the rpc
+      type RpcLobbyItem = {
+        lobby_id: string
+        game_state_id: string
+        game_id: number
+        game_title: string
+        player1_username: string | null
+        player1_id: string
+        player2_id: string | null
+        created_at: string
+      }
+
       // Transform the data into our Lobby type
-      const lobbies = data.map((item: any) => ({
+      const lobbies = (data as RpcLobbyItem[]).map((item) => ({
         id: item.lobby_id,
         gameStateId: item.game_state_id,
         gameId: item.game_id,
