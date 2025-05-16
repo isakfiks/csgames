@@ -5,7 +5,6 @@ import type React from "react"
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { FaArrowLeft, FaRedo, FaSync, FaChartBar } from "react-icons/fa"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 
 // Basic types for our Minesweeper game
@@ -50,7 +49,7 @@ const FACES = {
   lost: "😵",
 }
 
-export default function MinesweeperGame({ lobbyId, currentUser }: { lobbyId: string; currentUser: User | null }) {
+export default function MinesweeperGame({ }: { lobbyId: string; currentUser: User | null }) {
   const [grid, setGrid] = useState<Cell[][]>([])
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">("playing")
   const [difficulty, setDifficulty] = useState<GameDifficulty>("beginner")
