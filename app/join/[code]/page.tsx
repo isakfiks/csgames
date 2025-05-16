@@ -113,7 +113,7 @@ export default function JoinPage({ params }: JoinPageProps) {
             <div className="py-6">
               <div className="bg-green-100 border-2 border-green-500 p-4 rounded-lg mb-6">
                 <p className="text-green-700 text-xl font-bold mb-1">Success!</p>
-                <p className="text-green-700">You're joining:</p>
+                <p className="text-green-700">You&apos;re joining:</p>
               </div>
               
               <p className="text-2xl font-bold mb-8">{lobbyData.lobbyName}</p>
