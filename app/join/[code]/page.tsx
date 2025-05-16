@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FaArrowLeft } from 'react-icons/fa';
+import { useParams } from 'next/navigation'
 
 interface JoinResponse {
   lobbyId: string;
@@ -11,7 +12,8 @@ interface JoinResponse {
   lobbyUrl: string;
 }
 
-export default function JoinPage(params: { code: string }) {
+export default function JoinPage() {
+  const params = useParams<{ code: string }>()
   const { code } = params;
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
