@@ -37,11 +37,25 @@ const PLAYER2_COLOR = "#ecc94b"
 const POLLING_INTERVAL = 3000
 
 function GameLoading() {
-  return <div>Loading...</div>
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="animate-pulse flex flex-col items-center">
+        <div className="w-16 h-16 rounded-full bg-blue-600 mb-4 animate-bounce"></div>
+        <p className="text-xl font-bold">Loading game...</p>
+      </div>
+    </div>
+  )
 }
 
 function GameError({ error }: { error: string }) {
-  return <div>Error: {error}</div>
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md max-w-md">
+        <p className="font-bold">Error</p>
+        <p>{error}</p>
+      </div>
+    </div>
+  )
 }
 
 // Play Again Button Component
@@ -184,7 +198,7 @@ function PlayAgainButton({
     <button
       onClick={handlePlayAgain}
       disabled={isLoading || hasRequested}
-      className={`mt-2 px-4 py-2 rounded-lg flex items-center mx-auto ${
+      className={`mt-2 px-4 py-2 rounded-lg flex items-center mx-auto transition-all duration-300 transform hover:scale-105 ${
         hasRequested ? "bg-gray-300 text-gray-700" : "bg-black text-white hover:bg-gray-800"
       }`}
     >
@@ -503,7 +517,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-4xl mx-auto mb-4 md:mb-8">
         <div className="flex justify-between items-center">
-          <Link href={`/lobby/${lobbyId}`} className="flex items-center text-black">
+          <Link href={`/lobby/${lobbyId}`} className="flex items-center text-black transition-transform duration-200 hover:translate-x-[-4px]">
             <FaArrowLeft className="mr-2" />
             <span>Back to Lobby</span>
           </Link>
@@ -530,7 +544,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
             <div className={`flex items-center ${isMyTurn() && !gameOver ? "animate-pulse" : ""}`}>
               <div
-                className="w-4 h-4 md:w-6 md:h-6 rounded-full mr-2"
+                className="w-4 h-4 md:w-6 md:h-6 rounded-full mr-2 transition-all duration-300"
                 style={{
                   backgroundColor: gameState.current_player === gameState.player1 ? PLAYER1_COLOR : PLAYER2_COLOR,
                 }}
@@ -545,7 +559,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
         </div>
 
         {gameOver && (
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-center">
+          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-center animate-fadeIn">
             {winner ? (
               <p className="text-lg font-bold">
                 {winner === currentUser?.id ? "You won! 🎉" : `${getPlayerName(winner)} won!`}
@@ -559,7 +573,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div
-            className={`p-3 rounded-lg border-2 ${gameState.current_player === gameState.player1 && !gameOver ? "border-black" : "border-gray-200"}`}
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player1 && !gameOver ? "border-black shadow-md" : "border-gray-200"}`}
           >
             <div className="flex items-center">
               <div className="w-6 h-6 rounded-full mr-2" style={{ backgroundColor: PLAYER1_COLOR }}></div>
@@ -570,7 +584,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
             </div>
           </div>
           <div
-            className={`p-3 rounded-lg border-2 ${gameState.current_player === gameState.player2 && !gameOver ? "border-black" : "border-gray-200"}`}
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player2 && !gameOver ? "border-black shadow-md" : "border-gray-200"}`}
           >
             <div className="flex items-center">
               <div className="w-6 h-6 rounded-full mr-2" style={{ backgroundColor: PLAYER2_COLOR }}></div>
@@ -584,7 +598,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div
           ref={boardRef}
-          className="bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative"
+          className="bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-300"
           style={{
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
           }}
@@ -592,10 +606,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
         >
           {isMyTurn() && hoverColumn !== null && !gameOver && (
             <div
-              className="absolute top-0 w-[14.28%] h-8 flex items-center justify-center"
+              className="absolute top-0 w-[14.28%] h-8 flex items-center justify-center transition-all duration-200"
               style={{
                 left: `${hoverColumn * 14.28}%`,
-                transition: "left 0.1s ease-out",
               }}
             >
               <div className="w-[80%] h-[80%] rounded-full" style={{ backgroundColor: myColor, opacity: 0.7 }}></div>
@@ -607,14 +620,14 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
               row.map((cell: number, colIndex: number) => (
                 <div
                   key={`${rowIndex}-${colIndex}`}
-                  className="aspect-square bg-blue-700 rounded-full flex items-center justify-center relative overflow-hidden"
+                  className="aspect-square bg-blue-700 rounded-full flex items-center justify-center relative overflow-hidden transition-transform duration-200 hover:scale-105"
                   onClick={() => handleColumnClick(colIndex)}
                   onMouseEnter={() => setHoverColumn(colIndex)}
                   onMouseLeave={() => setHoverColumn(null)}
                   style={{ cursor: isMyTurn() && !gameOver ? "pointer" : "default" }}
                 >
                   <div
-                    className={`w-[85%] h-[85%] rounded-full ${
+                    className={`w-[85%] h-[85%] rounded-full transition-all duration-300 ${
                       dropAnimation && dropAnimation.col === colIndex && dropAnimation.row === rowIndex
                         ? "animate-drop-piece"
                         : ""
