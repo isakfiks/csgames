@@ -223,6 +223,8 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showWinnerMessage, setShowWinnerMessage] = useState(false)
   const [invalidMoveColumn, setInvalidMoveColumn] = useState<number | null>(null)
+  const [winningCells, setWinningCells] = useState<Array<[number, number]>>([])
+  const [gameStartAnimation, setGameStartAnimation] = useState(true)
 
   const boardRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -268,6 +270,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
             setTimeout(() => {
               setShowWinnerMessage(true)
             }, 500)
+            
+            // Find winning cells
+            findWinningCells(gameStateData.board)
           }
         }
 
@@ -314,6 +319,11 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                   setTimeout(() => {
                     setShowWinnerMessage(true)
                   }, 500)
+                  
+                  // Find winning cells
+                  if (payload.new.board) {
+                    findWinningCells(payload.new.board)
+                  }
                 }
               }
 
@@ -387,6 +397,11 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           })
 
         startPolling()
+        
+        // Hide game start animation after a delay
+        setTimeout(() => {
+          setGameStartAnimation(false)
+        }, 1000)
       } catch (err: unknown) {
         console.error("Error loading game data:", err)
         if (isActive) setError((err as Error).message || "Failed to load game data")
@@ -405,6 +420,75 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
       stopPolling()
     }
   }, [lobbyId, router, supabase, currentUser])
+  
+  // Find winning cells
+  function findWinningCells(board: number[][]) {
+    if (!board) return
+    
+    const rows = board.length
+    const cols = board[0].length
+    const winningCells: Array<[number, number]> = []
+    
+    // Check horizontal
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c <= cols - 4; c++) {
+        if (
+          board[r][c] !== 0 &&
+          board[r][c] === board[r][c + 1] &&
+          board[r][c] === board[r][c + 2] &&
+          board[r][c] === board[r][c + 3]
+        ) {
+          winningCells.push([r, c], [r, c + 1], [r, c + 2], [r, c + 3])
+        }
+      }
+    }
+    
+    // Check vertical
+    for (let r = 0; r <= rows - 4; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (
+          board[r][c] !== 0 &&
+          board[r][c] === board[r + 1][c] &&
+          board[r][c] === board[r + 2][c] &&
+          board[r][c] === board[r + 3][c]
+        ) {
+          winningCells.push([r, c], [r + 1, c], [r + 2, c], [r + 3, c])
+        }
+      }
+    }
+    
+    // Check diagonal (down-right)
+    for (let r = 0; r <= rows - 4; r++) {
+      for (let c = 0; c <= cols - 4; c++) {
+        if (
+          board[r][c] !== 0 &&
+          board[r][c] === board[r + 1][c + 1] &&
+          board[r][c] === board[r + 2][c + 2] &&
+          board[r][c] === board[r + 3][c + 3]
+        ) {
+          winningCells.push([r, c], [r + 1, c + 1], [r + 2, c + 2], [r + 3, c + 3])
+        }
+      }
+    }
+    
+    // Check diagonal (up-right)
+    for (let r = 3; r < rows; r++) {
+      for (let c = 0; c <= cols - 4; c++) {
+        if (
+          board[r][c] !== 0 &&
+          board[r][c] === board[r - 1][c + 1] &&
+          board[r][c] === board[r - 2][c + 2] &&
+          board[r][c] === board[r - 3][c + 3]
+        ) {
+          winningCells.push([r, c], [r - 1, c + 1], [r - 2, c + 2], [r - 3, c + 3])
+        }
+      }
+    }
+    
+    if (winningCells.length > 0) {
+      setWinningCells(winningCells)
+    }
+  }
 
   // Start polling for state updates
   function startPolling() {
@@ -450,6 +534,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           setTimeout(() => {
             setShowWinnerMessage(true)
           }, 500)
+          
+          // Find winning cells
+          findWinningCells(data.board)
         }
       }
     } catch (err) {
@@ -523,6 +610,11 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
   function isMyTurn() {
     return gameState && gameState.current_player === currentUser?.id
+  }
+  
+  // Check if a cell is part of the winning combination
+  function isWinningCell(rowIndex: number, colIndex: number): boolean {
+    return winningCells.some(([row, col]) => row === rowIndex && col === colIndex)
   }
 
   if (loading) {
@@ -622,7 +714,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div
           ref={boardRef}
-          className="bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-300 transform hover:scale-[1.01]"
+          className={`bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-500 transform ${gameStartAnimation ? "scale-95 opacity-90" : "scale-100 opacity-100"} hover:scale-[1.01]`}
           style={{
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
           }}
@@ -660,10 +752,12 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                       dropAnimation && dropAnimation.col === colIndex && dropAnimation.row === rowIndex
                         ? "animate-drop-piece"
                         : ""
-                    }`}
+                    } ${isWinningCell(rowIndex, colIndex) ? "animate-winner" : ""}`}
                     style={{
                       backgroundColor: getPlayerColor(cell),
-                      boxShadow: "inset 0 2px 4px 0 rgba(0, 0, 0, 0.1)",
+                      boxShadow: isWinningCell(rowIndex, colIndex) 
+                        ? "0 0 10px 2px rgba(255, 255, 255, 0.7), inset 0 2px 4px 0 rgba(0, 0, 0, 0.1)" 
+                        : "inset 0 2px 4px 0 rgba(0, 0, 0, 0.1)",
                     }}
                   ></div>
                 </div>
