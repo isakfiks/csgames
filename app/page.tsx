@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle, FaGamepad, FaChess } from "react-icons/fa"
+import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle, FaGamepad } from "react-icons/fa"
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
