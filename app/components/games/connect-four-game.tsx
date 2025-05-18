@@ -202,7 +202,7 @@ function PlayAgainButton({
         hasRequested ? "bg-gray-300 text-gray-700" : "bg-black text-white hover:bg-gray-800"
       }`}
     >
-      <FaRedo className="mr-2" />
+      <FaRedo className={`mr-2 ${isLoading ? "animate-spin" : ""}`} />
       {isLoading ? "Loading..." : hasRequested ? `Waiting for opponent (${requestCount}/2)` : "Play Again"}
     </button>
   )
@@ -221,6 +221,8 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
   const [gameOver, setGameOver] = useState(false)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showWinnerMessage, setShowWinnerMessage] = useState(false)
+  const [invalidMoveColumn, setInvalidMoveColumn] = useState<number | null>(null)
 
   const boardRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -263,6 +265,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           setGameOver(true)
           if (gameStateData.winner) {
             setWinner(gameStateData.winner)
+            setTimeout(() => {
+              setShowWinnerMessage(true)
+            }, 500)
           }
         }
 
@@ -306,6 +311,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                 setGameOver(true)
                 if ("winner" in payload.new && (payload.new as GameState).winner) {
                   setWinner((payload.new as GameState).winner)
+                  setTimeout(() => {
+                    setShowWinnerMessage(true)
+                  }, 500)
                 }
               }
 
@@ -439,6 +447,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
         setGameOver(true)
         if (data.winner) {
           setWinner(data.winner)
+          setTimeout(() => {
+            setShowWinnerMessage(true)
+          }, 500)
         }
       }
     } catch (err) {
@@ -452,12 +463,25 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
     setTimeout(() => setIsRefreshing(false), 500)
   }
 
+  // Check if column is full
+  function isColumnFull(columnIndex: number): boolean {
+    if (!gameState) return true
+    return gameState.board[0][columnIndex] !== 0
+  }
+
   // Handle click
   async function handleColumnClick(columnIndex: number) {
     if (!gameState || gameOver) return
 
     // Check if it's the user's turn
     if (gameState.current_player !== currentUser?.id) {
+      return
+    }
+
+    // Check if column is full
+    if (isColumnFull(columnIndex)) {
+      setInvalidMoveColumn(columnIndex)
+      setTimeout(() => setInvalidMoveColumn(null), 800)
       return
     }
 
@@ -535,7 +559,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           <div className="flex items-center space-x-4">
             <button
               onClick={handleManualRefresh}
-              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing ? "animate-spin" : ""}`}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 ${isRefreshing ? "animate-spin" : ""}`}
               aria-label="Refresh game"
               disabled={isRefreshing}
             >
@@ -558,10 +582,10 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           </div>
         </div>
 
-        {gameOver && (
+        {gameOver && showWinnerMessage && (
           <div className="mb-6 p-4 bg-gray-100 rounded-lg text-center animate-fadeIn">
             {winner ? (
-              <p className="text-lg font-bold">
+              <p className="text-lg font-bold animate-winner">
                 {winner === currentUser?.id ? "You won! 🎉" : `${getPlayerName(winner)} won!`}
               </p>
             ) : (
@@ -573,7 +597,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div
-            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player1 && !gameOver ? "border-black shadow-md" : "border-gray-200"}`}
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player1 && !gameOver ? "border-black shadow-md scale-105" : "border-gray-200"}`}
           >
             <div className="flex items-center">
               <div className="w-6 h-6 rounded-full mr-2" style={{ backgroundColor: PLAYER1_COLOR }}></div>
@@ -584,7 +608,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
             </div>
           </div>
           <div
-            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player2 && !gameOver ? "border-black shadow-md" : "border-gray-200"}`}
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${gameState.current_player === gameState.player2 && !gameOver ? "border-black shadow-md scale-105" : "border-gray-200"}`}
           >
             <div className="flex items-center">
               <div className="w-6 h-6 rounded-full mr-2" style={{ backgroundColor: PLAYER2_COLOR }}></div>
@@ -598,7 +622,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div
           ref={boardRef}
-          className="bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-300"
+          className="bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-300 transform hover:scale-[1.01]"
           style={{
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
           }}
@@ -611,7 +635,10 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                 left: `${hoverColumn * 14.28}%`,
               }}
             >
-              <div className="w-[80%] h-[80%] rounded-full" style={{ backgroundColor: myColor, opacity: 0.7 }}></div>
+              <div 
+                className={`w-[80%] h-[80%] rounded-full ${isColumnFull(hoverColumn) ? "animate-shake" : "animate-bounce-slow"}`} 
+                style={{ backgroundColor: myColor, opacity: 0.7 }}
+              ></div>
             </div>
           )}
 
@@ -620,11 +647,13 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
               row.map((cell: number, colIndex: number) => (
                 <div
                   key={`${rowIndex}-${colIndex}`}
-                  className="aspect-square bg-blue-700 rounded-full flex items-center justify-center relative overflow-hidden transition-transform duration-200 hover:scale-105"
+                  className={`aspect-square bg-blue-700 rounded-full flex items-center justify-center relative overflow-hidden transition-transform duration-200 
+                    ${isMyTurn() && !gameOver && !isColumnFull(colIndex) ? "hover:scale-105" : ""} 
+                    ${invalidMoveColumn === colIndex ? "animate-shake" : ""}`}
                   onClick={() => handleColumnClick(colIndex)}
                   onMouseEnter={() => setHoverColumn(colIndex)}
                   onMouseLeave={() => setHoverColumn(null)}
-                  style={{ cursor: isMyTurn() && !gameOver ? "pointer" : "default" }}
+                  style={{ cursor: isMyTurn() && !gameOver && !isColumnFull(colIndex) ? "pointer" : "default" }}
                 >
                   <div
                     className={`w-[85%] h-[85%] rounded-full transition-all duration-300 ${
