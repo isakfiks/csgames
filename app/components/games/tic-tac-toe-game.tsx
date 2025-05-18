@@ -96,8 +96,11 @@ function PlayAgainButton({
         },
         (payload) => {
           if (isActive) {
-            const newData = payload.new as any
-            setPlayAgainStatus(newData)
+            const newData = payload.new as { requested_by: string[]; new_game_id: string | null }
+            setPlayAgainStatus({
+              requestedBy: newData.requested_by,
+              newGameId: newData.new_game_id,
+            })
 
             // If there's a new game and current user has requested to play again, redirect
             if (newData.new_game_id && newData.requested_by.includes(currentUser?.id || "")) {

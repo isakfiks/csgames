@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 // Cache
 type CacheEntry = {
-  data: any
+  data: unknown
   refreshCount: number
   lastUpdated: number
 }
