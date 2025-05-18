@@ -151,7 +151,7 @@ export default function ChatWidget() {
         const twentyFourHoursAgo = new Date();
         twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-        const { error } = await supabase.from('messages').delete().lt('created_at', twentyFourHoursAgo.toISOString());
+        const { error } = await supabase!.from('messages').delete().lt('created_at', twentyFourHoursAgo.toISOString());
 
         if (error) {
           console.error('Error deleting old messages:', error);
