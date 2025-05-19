@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FaArrowLeft } from "react-icons/fa"
+import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 
@@ -12,7 +12,41 @@ interface BattleshipGameProps {
   currentUser: User | null
 }
 
+// Game constants
 const BOARD_SIZE = 10
+const EMPTY = 0
+const SHIP = 1
+const MISS = 2
+const HIT = 3
+
+// Ship types and sizes
+const SHIPS = [
+  { name: "Carrier", size: 5 },
+  { name: "Battleship", size: 4 },
+  { name: "Cruiser", size: 3 },
+  { name: "Submarine", size: 3 },
+  { name: "Destroyer", size: 2 }
+]
+
+interface GameState {
+  id: string
+  lobby_id: string
+  player1: string
+  player2: string
+  player1_board: number[][]
+  player2_board: number[][]
+  player1_shots: number[][]
+  player2_shots: number[][]
+  current_player: string
+  status: "setup" | "in_progress" | "finished"
+  winner: string | null
+  created_at?: string
+}
+
+interface Profile {
+  id: string
+  username: string
+}
 
 function GameLoading() {
   return (
@@ -41,11 +75,22 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const supabase = createClientComponentClient()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [gameState, setGameState] = useState<GameState | null>(null)
+  const [players, setPlayers] = useState<Profile[]>([])
+  
+  // Ship placement state
+  const [placementPhase, setPlacementPhase] = useState(true)
+  const [currentShipIndex, setCurrentShipIndex] = useState(0)
+  const [shipOrientation, setShipOrientation] = useState<"horizontal" | "vertical">("horizontal")
+  const [hoverPosition, setHoverPosition] = useState<{row: number, col: number} | null>(null)
   
   const [myBoard, setMyBoard] = useState<number[][]>(
     Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0))
   )
   const [opponentBoard, setOpponentBoard] = useState<number[][]>(
+    Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0))
+  )
+  const [myShots, setMyShots] = useState<number[][]>(
     Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0))
   )
 
@@ -57,6 +102,29 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
         if (!currentUser) {
           router.push("/")
           return
+        }
+
+        // Mock game state for now
+        const mockGameState: GameState = {
+          id: "mock-id",
+          lobby_id: lobbyId,
+          player1: currentUser.id,
+          player2: "opponent-id",
+          player1_board: Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0)),
+          player2_board: Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0)),
+          player1_shots: Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0)),
+          player2_shots: Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0)),
+          current_player: currentUser.id,
+          status: "setup",
+          winner: null
+        }
+        
+        if (isActive) {
+          setGameState(mockGameState)
+          setPlayers([
+            { id: currentUser.id, username: "You" },
+            { id: "opponent-id", username: "Opponent" }
+          ])
         }
         
         setTimeout(() => {
@@ -75,12 +143,95 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     }
   }, [lobbyId, router, supabase, currentUser])
 
+  // Handle ship placement
+  function handleCellClick(row: number, col: number) {
+    if (!placementPhase) return
+    
+    const currentShip = SHIPS[currentShipIndex]
+    if (!currentShip) return
+    
+    // Check if placement is valid
+    if (isValidPlacement(row, col, currentShip.size, shipOrientation)) {
+      // Place the ship
+      const newBoard = [...myBoard]
+      
+      if (shipOrientation === "horizontal") {
+        for (let i = 0; i < currentShip.size; i++) {
+          newBoard[row][col + i] = SHIP
+        }
+      } else {
+        for (let i = 0; i < currentShip.size; i++) {
+          newBoard[row + i][col] = SHIP
+        }
+      }
+      
+      setMyBoard(newBoard)
+      
+      if (currentShipIndex < SHIPS.length - 1) {
+        setCurrentShipIndex(currentShipIndex + 1)
+      } else {
+        setPlacementPhase(false)
+      }
+    }
+  }
+  
+  // Check if ship placement is valid
+  function isValidPlacement(row: number, col: number, size: number, orientation: "horizontal" | "vertical"): boolean {
+    // Check if ship fits on board
+    if (orientation === "horizontal" && col + size > BOARD_SIZE) return false
+    if (orientation === "vertical" && row + size > BOARD_SIZE) return false
+    
+    // Check if ship overlaps with another ship
+    if (orientation === "horizontal") {
+      for (let i = 0; i < size; i++) {
+        if (myBoard[row][col + i] !== EMPTY) return false
+      }
+    } else {
+      for (let i = 0; i < size; i++) {
+        if (myBoard[row + i][col] !== EMPTY) return false
+      }
+    }
+    
+    return true
+  }
+  
+  // Handle hover for ship placement preview
+  function handleCellHover(row: number, col: number) {
+    if (!placementPhase) return
+    setHoverPosition({ row, col })
+  }
+  
+  // Check if cell is part of current hover preview
+  function isHoverCell(row: number, col: number): boolean {
+    if (!placementPhase || !hoverPosition) return false
+    
+    const currentShip = SHIPS[currentShipIndex]
+    if (!currentShip) return false
+    
+    if (shipOrientation === "horizontal") {
+      return row === hoverPosition.row && 
+             col >= hoverPosition.col && 
+             col < hoverPosition.col + currentShip.size &&
+             hoverPosition.col + currentShip.size <= BOARD_SIZE
+    } else {
+      return col === hoverPosition.col && 
+             row >= hoverPosition.row && 
+             row < hoverPosition.row + currentShip.size &&
+             hoverPosition.row + currentShip.size <= BOARD_SIZE
+    }
+  }
+  
+  // Toggle ship orientation
+  function toggleOrientation() {
+    setShipOrientation(shipOrientation === "horizontal" ? "vertical" : "horizontal")
+  }
+
   if (loading) {
     return <GameLoading />
   }
 
-  if (error) {
-    return <GameError error={error} />
+  if (error || !gameState) {
+    return <GameError error={error || "Game not found"} />
   }
 
   return (
@@ -101,7 +252,19 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
       <main className="text-black max-w-4xl mx-auto">
         <div className="mb-4 md:mb-6">
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2">Battleship</h2>
-          <p className="text-gray-600">Place your ships and attack your opponent's fleet!</p>
+          {placementPhase ? (
+            <div className="flex items-center justify-between">
+              <p className="text-gray-600">Place your {SHIPS[currentShipIndex]?.name || "ships"}</p>
+              <button 
+                onClick={toggleOrientation}
+                className="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                {shipOrientation === "horizontal" ? "Horizontal" : "Vertical"}
+              </button>
+            </div>
+          ) : (
+            <p className="text-gray-600">Attack your opponent's fleet!</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -113,7 +276,21 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
                   row.map((cell, colIndex) => (
                     <div
                       key={`my-${rowIndex}-${colIndex}`}
-                      className="aspect-square bg-blue-200 rounded-sm flex items-center justify-center"
+                      className={`aspect-square rounded-sm flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                        placementPhase && isValidPlacement(rowIndex, colIndex, SHIPS[currentShipIndex]?.size || 0, shipOrientation) 
+                          ? "hover:bg-blue-300" 
+                          : ""
+                      } ${
+                        isHoverCell(rowIndex, colIndex) 
+                          ? isValidPlacement(hoverPosition?.row || 0, hoverPosition?.col || 0, SHIPS[currentShipIndex]?.size || 0, shipOrientation)
+                            ? "bg-blue-300" 
+                            : "bg-red-300"
+                          : cell === SHIP 
+                            ? "bg-gray-600" 
+                            : "bg-blue-200"
+                      }`}
+                      onClick={() => handleCellClick(rowIndex, colIndex)}
+                      onMouseEnter={() => handleCellHover(rowIndex, colIndex)}
                     ></div>
                   ))
                 )}
@@ -129,7 +306,9 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
                   row.map((cell, colIndex) => (
                     <div
                       key={`opponent-${rowIndex}-${colIndex}`}
-                      className="aspect-square bg-red-200 rounded-sm flex items-center justify-center"
+                      className={`aspect-square bg-red-200 rounded-sm flex items-center justify-center ${
+                        !placementPhase ? "cursor-pointer hover:bg-red-300" : ""
+                      }`}
                     ></div>
                   ))
                 )}
