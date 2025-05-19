@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle } from "react-icons/fa"
+import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle, FaGamepad } from "react-icons/fa"
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
@@ -77,7 +77,7 @@ export default function Home() {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       })
-      
+
       console.log(data)
       console.log(error)
       if (error) throw error
@@ -153,11 +153,53 @@ export default function Home() {
     },
   }
 
+  const gameIcons = [
+    { icon: "♟️", x: "10%", y: "15%", size: "2rem", rotation: -15, delay: 0 },
+    { icon: "🎮", x: "85%", y: "20%", size: "2.5rem", rotation: 10, delay: 0.2 },
+    { icon: "🎲", x: "75%", y: "75%", size: "2rem", rotation: -5, delay: 0.4 },
+    { icon: "🎯", x: "15%", y: "80%", size: "2.2rem", rotation: 15, delay: 0.6 },
+    { icon: "🎪", x: "50%", y: "10%", size: "2.3rem", rotation: 0, delay: 0.8 },
+    { icon: "🎨", x: "20%", y: "40%", size: "1.8rem", rotation: -10, delay: 1 },
+    { icon: "🏆", x: "80%", y: "50%", size: "2rem", rotation: 5, delay: 1.2 },
+  ]
+
   return (
-    <div className="bg-gradient-to-b from-white to-gray-50 min-h-screen font-[family-name:var(--font-geist-sans)] relative">
+    <div className="min-h-screen font-[family-name:var(--font-geist-sans)] relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-gray-50 to-gray-100 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0.02)_0%,transparent_50%)] animate-pulse"></div>
+      </div>
+
+      {gameIcons.map((icon, index) => (
+        <motion.div
+          key={index}
+          className="absolute text-gray-300 opacity-30 pointer-events-none z-0"
+          style={{
+            left: icon.x,
+            top: icon.y,
+            fontSize: icon.size,
+          }}
+          initial={{ opacity: 0, rotate: icon.rotation }}
+          animate={{
+            opacity: [0.2, 0.3, 0.2],
+            y: [0, -10, 0],
+            rotate: icon.rotation,
+          }}
+          transition={{
+            delay: icon.delay,
+            duration: 5,
+            repeat: Number.POSITIVE_INFINITY,
+            repeatType: "reverse",
+          }}
+        >
+          {icon.icon}
+        </motion.div>
+      ))}
+
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UwZTBlMCIgb3BhY2l0eT0iMC4yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30 z-0"></div>
+
       <motion.button
         onClick={() => setShowAboutModal(true)}
-        className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors shadow-sm"
+        className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors shadow-sm z-10"
         aria-label="About"
         whileHover={{ scale: 1.1, rotate: 5 }}
         whileTap={{ scale: 0.95 }}
@@ -223,33 +265,84 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <div className="grid place-items-center min-h-screen p-8">
+      <div className="grid place-items-center min-h-screen p-8 relative z-10">
         <motion.main
           className="text-center flex flex-col items-center max-w-md w-full"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
-          <motion.div className="flex mb-6" variants={logoVariants}>
-            <motion.h1
-              className="text-4xl font-bold text-black"
+          <motion.div className="relative mb-6" variants={logoVariants}>
+            <motion.div
+              className="absolute -inset-4 rounded-full bg-gradient-to-r from-purple-100 via-blue-100 to-green-100 opacity-70 blur-lg"
               animate={{
-                scale: [1, 1.02, 1],
-                transition: {
+                rotate: [0, 360],
+                scale: [0.9, 1.1, 0.9],
+              }}
+              transition={{
+                duration: 15,
+                repeat: Number.POSITIVE_INFINITY,
+                repeatType: "loop",
+              }}
+            />
+            <motion.div className="relative flex items-center">
+              <motion.h1
+                className="text-5xl font-bold text-black"
+                animate={{
+                  scale: [1, 1.02, 1],
+                  transition: {
+                    repeat: Number.POSITIVE_INFINITY,
+                    repeatType: "reverse",
+                    duration: 2,
+                  },
+                }}
+              >
+                CSGames
+              </motion.h1>
+              <span className="text-black text-5xl">.dev</span>
+              <motion.div
+                className="absolute -top-2 -right-6 text-yellow-500"
+                animate={{
+                  rotate: [0, 10, 0],
+                  y: [0, -3, 0],
+                }}
+                transition={{
+                  duration: 2,
                   repeat: Number.POSITIVE_INFINITY,
                   repeatType: "reverse",
-                  duration: 2,
-                },
-              }}
-            >
-              CSGames
-            </motion.h1>
-            <span className="text-black text-4xl">.dev</span>
+                }}
+              >
+                <FaGamepad size={20} />
+              </motion.div>
+            </motion.div>
           </motion.div>
 
-          <motion.p className="text-gray-600 mb-10" variants={itemVariants}>
+          <motion.p className="text-gray-600 mb-6 text-lg" variants={itemVariants}>
             Play classic games online with friends
           </motion.p>
+
+          <motion.div className="flex justify-center gap-4 mb-10" variants={itemVariants}>
+            {["♟️", "🎮", "🎲", "🎯", "🎪"].map((icon, index) => (
+              <motion.span
+                key={index}
+                className="text-2xl"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: index * 0.1,
+                  type: "spring",
+                  stiffness: 100,
+                }}
+                whileHover={{
+                  scale: 1.2,
+                  rotate: [0, 10, -10, 0],
+                  transition: { duration: 0.5 },
+                }}
+              >
+                {icon}
+              </motion.span>
+            ))}
+          </motion.div>
 
           {user ? (
             <motion.div className="w-full space-y-4" variants={containerVariants}>
@@ -305,6 +398,10 @@ export default function Home() {
               </motion.button>
             </motion.div>
           )}
+
+          <motion.div className="mt-10 text-xs text-gray-400" variants={itemVariants}>
+            <p>Hint: We have singleplayer games too 😉</p>
+          </motion.div>
         </motion.main>
       </div>
     </div>
