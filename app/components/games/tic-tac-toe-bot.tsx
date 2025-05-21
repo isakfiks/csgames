@@ -76,7 +76,100 @@ function canWin(board: Board, player: Player): [number, number] | null {
   return null
 }
 
-// Tries to take center if availabl
+
+function createsFork(board: Board, player: Player, row: number, col: number): boolean {
+  // Create a copy of the board with the potential move
+  const boardCopy = JSON.parse(JSON.stringify(board))
+  boardCopy[row][col] = player
+
+  // Count potential winning moves
+  let winningMoves = 0
+
+  // Check rows
+  for (let r = 0; r < 3; r++) {
+    let playerCount = 0
+    let emptyCount = 0
+
+    for (let c = 0; c < 3; c++) {
+      if (boardCopy[r][c] === player) {
+        playerCount++
+      } else if (!boardCopy[r][c]) {
+        emptyCount++
+      }
+    }
+
+    if (playerCount === 2 && emptyCount === 1) {
+      winningMoves++
+    }
+  }
+
+  // Check columns
+  for (let c = 0; c < 3; c++) {
+    let playerCount = 0
+    let emptyCount = 0
+
+    for (let r = 0; r < 3; r++) {
+      if (boardCopy[r][c] === player) {
+        playerCount++
+      } else if (!boardCopy[r][c]) {
+        emptyCount++
+      }
+    }
+
+    if (playerCount === 2 && emptyCount === 1) {
+      winningMoves++
+    }
+  }
+
+  // Check diagonals
+  // First diagonal
+  let playerCount2 = 0
+  let emptyCount = 0
+
+  for (let i = 0; i < 3; i++) {
+    if (boardCopy[i][i] === player) {
+      playerCount2++
+    } else if (!boardCopy[i][i]) {
+      emptyCount++
+    }
+  }
+
+  if (playerCount2 === 2 && emptyCount === 1) {
+    winningMoves++
+  }
+
+  // Second diagonal
+  playerCount2 = 0
+  emptyCount = 0
+
+  for (let i = 0; i < 3; i++) {
+    if (boardCopy[i][2 - i] === player) {
+      playerCount2++
+    } else if (!boardCopy[i][2 - i]) {
+      emptyCount++
+    }
+  }
+
+  if (playerCount2 === 2 && emptyCount === 1) {
+    winningMoves++
+  }
+
+  // A fork has at least two potential winning moves
+  return winningMoves >= 2
+}
+
+function findForkMove(board: Board, player: Player): [number, number] | null {
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      if (!board[row][col] && createsFork(board, player, row, col)) {
+        return [row, col]
+      }
+    }
+  }
+
+  return null
+}
+
 function tryCenter(board: Board): [number, number] | null {
   if (!board[1][1]) {
     return [1, 1]
@@ -84,7 +177,6 @@ function tryCenter(board: Board): [number, number] | null {
   return null
 }
 
-// Tries to take corner if available
 function tryCorner(board: Board): [number, number] | null {
   const corners: [number, number][] = [
     [0, 0],
@@ -108,7 +200,29 @@ function tryCorner(board: Board): [number, number] | null {
   return null
 }
 
-// Make move
+function tryEdge(board: Board): [number, number] | null {
+  const edges: [number, number][] = [
+    [0, 1],
+    [1, 0],
+    [1, 2],
+    [2, 1],
+  ]
+
+  // Shuffle edges for some unpredictability
+  for (let i = edges.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[edges[i], edges[j]] = [edges[j], edges[i]]
+  }
+
+  for (const [row, col] of edges) {
+    if (!board[row][col]) {
+      return [row, col]
+    }
+  }
+
+  return null
+}
+
 export function makeAIMove(board: Board, aiPlayer: Player, humanPlayer: Player): [number, number] | null {
   // First, check if AI can win
   const winningMove = canWin(board, aiPlayer)
@@ -120,6 +234,18 @@ export function makeAIMove(board: Board, aiPlayer: Player, humanPlayer: Player):
   const blockingMove = canWin(board, humanPlayer)
   if (blockingMove) {
     return blockingMove
+  }
+
+  // Create a fork if possible
+  const forkMove = findForkMove(board, aiPlayer)
+  if (forkMove) {
+    return forkMove
+  }
+
+  // Block opponent's fork
+  const opponentForkMove = findForkMove(board, humanPlayer)
+  if (opponentForkMove) {
+    return opponentForkMove
   }
 
   // Take center if available
@@ -134,7 +260,13 @@ export function makeAIMove(board: Board, aiPlayer: Player, humanPlayer: Player):
     return cornerMove
   }
 
-  // Otherwise, make a random move
+  // Take an edge if available
+  const edgeMove = tryEdge(board)
+  if (edgeMove) {
+    return edgeMove
+  }
+
+  // Fallback, make a random move
   const emptyCells: [number, number][] = []
 
   for (let row = 0; row < 3; row++) {
