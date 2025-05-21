@@ -3,11 +3,12 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FaArrowLeft, FaPlay, FaSync } from "react-icons/fa";
+import { FaArrowLeft, FaPlay, FaSync, FaGamepad } from "react-icons/fa";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import React from "react";
 import GenerateCodeButton from "../../components/GenerateCodeButton";
+import LobbyMiniGame from "../../components/MiniGame";
 import type { User } from "@supabase/supabase-js";
 
 const supabase = createClientComponentClient();
@@ -74,6 +75,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAIOption, setShowAIOption] = useState(false);
   const [isSettingUpAI, setIsSettingUpAI] = useState(false);
+  const [showMiniGame, setShowMiniGame] = useState(false);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const subscriptionRef = useRef<RealtimeChannel | null>(null);
@@ -528,17 +530,33 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-3xl font-bold text-black">{game?.title || "Connect Four"} Lobby</h2>
 
-            <button
-              onClick={handleManualRefresh}
-              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${
-                isRefreshing ? "animate-spin" : ""
-              }`}
-              aria-label="Refresh lobby"
-              disabled={isRefreshing}
-            >
-              <FaSync className="text-black" />
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setShowMiniGame(!showMiniGame)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                aria-label="Play mini game"
+              >
+                <FaGamepad className="text-black" />
+              </button>
+              <button
+                onClick={handleManualRefresh}
+                className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${
+                  isRefreshing ? "animate-spin" : ""
+                }`}
+                aria-label="Refresh lobby"
+                disabled={isRefreshing}
+              >
+                <FaSync className="text-black" />
+              </button>
+            </div>
           </div>
+
+          {/* Mini Game Section */}
+          {showMiniGame && (
+            <div className="mb-6">
+              <LobbyMiniGame onClose={() => setShowMiniGame(false)} />
+            </div>
+          )}
 
           <div className="mb-6">
             <p className="text-black mb-2">
