@@ -378,11 +378,12 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       .from("game_states")
       .update({ status: "waiting" })
       .eq("id", gameState.id)
-      .then(() => {
+      .then(({ error }) => {
+        if (error) {
+          console.error("Error updating game state:", error);
+          return;
+        }
         setShowAIOption(false);
-      })
-      .catch((err) => {
-        console.error("Error updating game state:", err);
       });
   }
 
