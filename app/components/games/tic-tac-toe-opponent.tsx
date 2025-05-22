@@ -5,14 +5,24 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 import { makeAIMove } from "./tic-tac-toe-bot"
 
+interface TicTacToeGameState {
+  id: string
+  board: (string | null)[][]
+  current_player: string
+  player1: string
+  player2: string
+  status: "waiting" | "playing" | "completed"
+  winner: string | null
+  ai_opponent: boolean
+}
+
 interface TicTacToeAIOpponentProps {
-  gameState: any
+  gameState: TicTacToeGameState
   currentUser: User | null
   onMove: (row: number, col: number) => Promise<void>
 }
 
-export default function TicTacToeAIOpponent({ gameState, currentUser, onMove }: TicTacToeAIOpponentProps) {
-  const supabase = createClientComponentClient()
+export default function TicTacToeAIOpponent({ gameState, onMove }: TicTacToeAIOpponentProps) {
   const [isAIThinking, setIsAIThinking] = useState(false)
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -38,7 +48,7 @@ export default function TicTacToeAIOpponent({ gameState, currentUser, onMove }: 
         aiTimeoutRef.current = setTimeout(async () => {
           try {
             // Convert the board format if needed
-            const board = gameState.board.map((row: any) => row.map((cell: any) => cell || null))
+            const board = gameState.board.map((row) => row.map((cell) => cell))
 
             // Get the AI move
             const aiPlayer = gameState.player2
