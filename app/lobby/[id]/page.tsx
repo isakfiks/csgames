@@ -583,44 +583,173 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           <div className="mb-6">
             <h3 className="text-xl font-bold text-black mb-4">Players</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border-2 border-black rounded-lg p-4">
-                <p className="font-bold mb-2">Player 1 (Red)</p>
-                <p>{getPlayerName(gameState?.player1)}</p>
-                {gameState?.player1 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+              <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
+                <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-red-500 opacity-20"></div>
+                <p className="font-bold mb-2 flex items-center">
+                  Player 1{" "}
+                  <span className="ml-2 inline-block w-4 h-4 rounded-full bg-red-500"></span>
+                </p>
+                <p className="relative z-10">{getPlayerName(gameState?.player1)}</p>
+                {gameState?.player1 === currentUser?.id && (
+                  <div className="flex items-center mt-2 text-xs text-gray-600">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                    <p>That's you!</p>
+                  </div>
+                )}
               </div>
-              <div className="border-2 border-black rounded-lg p-4">
-                <p className="font-bold mb-2">Player 2 (Yellow)</p>
-                <p>{gameState?.ai_opponent ? "AI Opponent" : getPlayerName(gameState?.player2)}</p>
-                {gameState?.player2 === currentUser?.id && <p className="text-xs text-gray-500 mt-1">(You)</p>}
+
+              <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-yellow-500 opacity-20"></div>
+                <p className="font-bold mb-2 flex items-center">
+                  Player 2
+                  <span className="ml-2 inline-block w-4 h-4 rounded-full bg-yellow-500"></span>
+                </p>
+                <p className="relative z-10">
+                  {gameState?.ai_opponent ? (
+                    <span className="flex items-center">
+                      <svg
+                        className="w-5 h-5 mr-1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                        <circle cx="9" cy="10" r="2"></circle>
+                        <circle cx="15" cy="10" r="2"></circle>
+                        <path d="M9 16h6"></path>
+                      </svg>
+                      AI Opponent
+                    </span>
+                  ) : (
+                    getPlayerName(gameState?.player2)
+                  )}
+                </p>
+                {gameState?.player2 === currentUser?.id && (
+                  <div className="flex items-center mt-2 text-xs text-gray-600">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                    <p>That's you!</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end">
-            {isInGame && gameState?.status === "playing" && (
-              <Link href={`/game/${resolvedParams.id}`}>
-                <button className="bg-black text-white px-6 py-3 rounded-lg flex items-center">
-                  <FaPlay className="mr-2" />
-                  Go to Game
+          <div className="mb-6">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h3 className="text-lg font-bold mb-3">Game Status</h3>
+              <div className="flex items-center mb-4">
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-500 ${
+                      gameState?.status === "playing"
+                        ? "bg-green-600 w-full"
+                        : gameState?.status === "waiting" && isGameFull
+                        ? "bg-yellow-500 w-3/4"
+                        : "bg-blue-500 w-1/4"
+                    }`}
+                  ></div>
+                </div>
+                <span className="ml-3 text-sm font-medium">
+                  {gameState?.status === "playing"
+                    ? "In Progress"
+                    : gameState?.status === "waiting" && isGameFull
+                    ? "Ready to Start"
+                    : "Waiting for Players"}
+                </span>
+              </div>
+
+              {isGameFull && isWaiting && isCreator && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-700 mb-2">
+                    All players are ready! As the creator of this lobby, you can start the game.
+                  </p>
+                  <Link href={`/game/${resolvedParams.id}`}>
+                    <button className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-2 rounded-lg flex items-center hover:from-yellow-600 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-md">
+                      <FaPlay className="mr-2" />
+                      Start Game
+                    </button>
+                  </Link>
+                </div>
+              )}
+
+              {isGameFull && isWaiting && !isCreator && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-pulse">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-blue-600 mr-2 animate-spin"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <p className="text-sm text-blue-700">Waiting for the host to start the game...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex-grow">
+              {!isInGame && !canJoin && !isCreator && gameState?.status !== "waiting" && (
+                <div className="p-3 bg-gray-100 rounded-lg border border-gray-200">
+                  <p className="text-gray-600 text-sm">This game is already in progress.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              {isInGame && gameState?.status === "playing" && (
+                <Link href={`/game/${resolvedParams.id}`}>
+                  <button className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg flex items-center hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md">
+                    <FaPlay className="mr-2" />
+                    Go to Game
+                  </button>
+                </Link>
+              )}
+
+              {canJoin && (
+                <button
+                  onClick={() => joinGame()}
+                  disabled={joining}
+                  className="relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-lg flex items-center hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-md disabled:opacity-70"
+                >
+                  {joining ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Joining...
+                    </>
+                  ) : (
+                    <>
+                      Join Game
+                      <span className="absolute -top-10 -right-10 w-20 h-20 bg-white/20 rotate-45 transform translate-x-1/2 -translate-y-1/2 transition-transform duration-700 ease-in-out group-hover:translate-y-full"></span>
+                    </>
+                  )}
                 </button>
-              </Link>
-            )}
-
-            {canJoin && (
-              <button
-                onClick={() => joinGame()}
-                disabled={joining}
-                className="bg-black text-white px-6 py-3 rounded-lg"
-              >
-                {joining ? "Joining..." : "Join Game"}
-              </button>
-            )}
-
-            {isGameFull && isWaiting && <p className="text-gray-600">Waiting for the game to start...</p>}
-
-            {!canJoin && !isInGame && !isCreator && gameState?.status !== "waiting" && (
-              <p className="text-gray-600">This game is already in progress.</p>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </main>
