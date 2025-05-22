@@ -1167,6 +1167,33 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     setSoundEnabled(!soundEnabled)
   }
 
+  // Modified to use opponentShots
+  function updateShipHealthStatus() {
+    // Track damage to your ships based on opponent's shots
+    if (opponentShots) {
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          // If there's a hit on one of your ships
+          if (opponentShots[row][col] === HIT && myBoard[row][col] === SHIP) {
+            const cellKey = `${row},${col}`;
+            const shipIndex = myShipCells[cellKey];
+            
+            // If the ship index is valid, we could track its damage here
+            if (shipIndex !== undefined) {
+              // This would be the place to update ship health if needed
+              console.log(`Ship ${shipIndex} was hit at ${row},${col}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Call this function whenever opponent shots are updated
+  useEffect(() => {
+    updateShipHealthStatus();
+  }, [opponentShots]);
+
   if (loading) {
     return <GameLoading />
   }
