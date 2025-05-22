@@ -273,7 +273,6 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [hitAnimation, setHitAnimation] = useState<{ row: number; col: number; isHit: boolean } | null>(null)
   const [recentMoves, setRecentMoves] = useState<GameMove[]>([])
-  const [gameStartAnimation, setGameStartAnimation] = useState(true)
 
   // Local boards for rendering
   const [myBoard, setMyBoard] = useState<number[][]>(
@@ -298,20 +297,16 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   )
 
   // Ship tracking
-  const [myShipHealth, setMyShipHealth] = useState<{ [key: number]: number }>(
+  const [myShipHealth] = useState<{ [key: number]: number }>(
     SHIPS.reduce((acc, ship, index) => ({ ...acc, [index]: ship.size }), {}),
   )
-  const [opponentShipHealth, setOpponentShipHealth] = useState<{ [key: number]: number }>(
+  const [opponentShipHealth] = useState<{ [key: number]: number }>(
     SHIPS.reduce((acc, ship, index) => ({ ...acc, [index]: ship.size }), {}),
   )
 
   // Ship cells mapping
   const [myShipCells, setMyShipCells] = useState<{ [key: string]: number }>({})
   const [opponentShipCells, setOpponentShipCells] = useState<{ [key: string]: number }>({})
-
-  // Sunk ships
-  const [mySunkShips, setMySunkShips] = useState<number[]>([])
-  const [opponentSunkShips, setOpponentSunkShips] = useState<number[]>([])
 
   // Audio refs
   const hitSoundRef = useRef<HTMLAudioElement | null>(null)
@@ -690,7 +685,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
         // Hide game start animation after a delay
         setTimeout(() => {
-          setGameStartAnimation(false)
+          // We'll use this timeout but without setting the removed state
         }, 1000)
       } catch (err: unknown) {
         console.error("Error loading game data:", err)
