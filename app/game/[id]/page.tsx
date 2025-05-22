@@ -13,6 +13,18 @@ import GameLoading from "@/app/components/games/game-loading"
 import GameError from "@/app/components/games/game-error"
 import TicTacToeAIOpponent from "@/app/components/games/tic-tac-toe-opponent"
 
+interface TicTacToeGameState {
+  id: string
+  lobby_id: string
+  board: (string | null)[][]
+  current_player: string
+  player1: string
+  player2: string
+  status: "waiting" | "playing" | "completed"
+  winner: string | null
+  ai_opponent: boolean
+}
+
 interface Game {
   id: string
   title: string
@@ -148,7 +160,11 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
         <>
           <TicTacToeGame lobbyId={lobby.id} currentUser={currentUser} />
           {gameState.ai_opponent && (
-            <TicTacToeAIOpponent gameState={gameState} currentUser={currentUser} onMove={handleAIMove} />
+            <TicTacToeAIOpponent
+              gameState={gameState as unknown as TicTacToeGameState}
+              currentUser={currentUser}
+              onMove={handleAIMove}
+            />
           )}
         </>
       )}
