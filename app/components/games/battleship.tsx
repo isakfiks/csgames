@@ -270,7 +270,6 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<string | null>(null)
   const [showWinnerMessage, setShowWinnerMessage] = useState(false)
-  const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [hitAnimation, setHitAnimation] = useState<{ row: number; col: number; isHit: boolean } | null>(null)
   const [recentMoves, setRecentMoves] = useState<GameMove[]>([])
   const [gameStartAnimation, setGameStartAnimation] = useState(true)
@@ -600,7 +599,6 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
               const newState = payload.new as GameState
               setGameState(newState)
-              setLastMoveTime(Date.now())
 
               // Handle state changes
               if (newState.status === "in_progress" && placementPhase) {
@@ -885,7 +883,6 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
       console.log("Fetched latest game state:", data)
       setGameState(data)
-      setLastMoveTime(Date.now())
 
       // Update game state based on fetched data
       // This is handled by the subscription, but we'll update it here as well for redundancy
