@@ -152,7 +152,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
             // show the AI option
             if (
               gameData?.title === "Tic Tac Toe" &&
-              gameStateData.status === "pending" &&
+              gameStateData.status === "waiting" &&
               gameStateData.player1 === session.user.id &&
               !gameStateData.ai_opponent
             ) {
