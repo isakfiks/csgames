@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FaArrowLeft, FaRedo, FaSync, FaRandom, FaCheck } from "react-icons/fa"
+import { FaArrowLeft, FaRedo, FaSync, FaRandom, FaCheck, FaVolumeUp, FaVolumeMute } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User, RealtimeChannel } from "@supabase/supabase-js"
 
@@ -18,6 +18,7 @@ const EMPTY = 0
 const SHIP = 1
 const MISS = 2
 const HIT = 3
+const SUNK = 4
 
 // Ship types and sizes
 const SHIPS = [
@@ -43,6 +44,7 @@ interface GameState {
   status: "setup" | "in_progress" | "finished"
   winner: string | null
   created_at?: string
+  last_updated?: string
 }
 
 interface Profile {
@@ -55,6 +57,16 @@ interface ShipPlacement {
   row: number
   col: number
   orientation: "horizontal" | "vertical"
+}
+
+interface GameMove {
+  id: string
+  game_state_id: string
+  player_id: string
+  row: number
+  col: number
+  is_hit: boolean
+  created_at: string
 }
 
 function GameLoading() {
@@ -101,33 +113,118 @@ function PlayAgainButton({
     let isActive = true
 
     const fetchPlayAgainStatus = async () => {
-      if (isActive) {
+      const { data, error } = await supabase
+        .from("play_again_requests")
+        .select("*")
+        .eq("original_game_id", gameStateId)
+        .single()
+
+      if (!error && data && isActive) {
         setPlayAgainStatus({
-          requestedBy: [],
-          newGameId: null,
+          requestedBy: data.requested_by || [],
+          newGameId: data.new_game_id,
         })
+
+        // If there's a new game and current user has requested to play again, redirect
+        if (data.new_game_id && data.requested_by.includes(currentUser?.id || "")) {
+          window.location.href = `/game/${lobbyId}`
+        }
       }
     }
 
     fetchPlayAgainStatus()
 
+    // Subscribe to changes
+    const channel = supabase
+      .channel(`play-again-${gameStateId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "play_again_requests",
+          filter: `original_game_id=eq.${gameStateId}`,
+        },
+        (payload) => {
+          if (isActive) {
+            const newData = payload.new as { requested_by: string[]; new_game_id: string | null }
+            setPlayAgainStatus({
+              requestedBy: newData.requested_by || [],
+              newGameId: newData.new_game_id,
+            })
+
+            // If there's a new game and current user has requested to play again, redirect
+            if (newData.new_game_id && newData.requested_by.includes(currentUser?.id || "")) {
+              window.location.href = `/game/${lobbyId}`
+            }
+          }
+        },
+      )
+      .subscribe()
+
     return () => {
       isActive = false
+      channel.unsubscribe()
     }
-  }, [gameStateId, supabase, currentUser])
+  }, [gameStateId, supabase, currentUser, lobbyId])
 
   const handlePlayAgain = async () => {
     if (!currentUser) return
 
     setIsLoading(true)
-    // Simulate request
-    setTimeout(() => {
-      setPlayAgainStatus({
-        requestedBy: [currentUser.id],
-        newGameId: null,
-      })
+    try {
+      // Check if a request already exists
+      const { data, error } = await supabase
+        .from("play_again_requests")
+        .select("*")
+        .eq("original_game_id", gameStateId)
+        .single()
+
+      if (error && error.code === "PGRST116") {
+        // No request exists, create one
+        await supabase.from("play_again_requests").insert({
+          original_game_id: gameStateId,
+          lobby_id: lobbyId,
+          requested_by: [currentUser.id],
+          new_game_id: null,
+        })
+      } else if (data) {
+        // Request exists but current user hasn't requested yet
+        if (!data.requested_by.includes(currentUser.id)) {
+          const updatedRequestedBy = [...data.requested_by, currentUser.id]
+
+          // If both players have now requested, create a new game
+          if (updatedRequestedBy.length >= 2) {
+            // Call server function to create a new game
+            const { data: newGameData } = await supabase.rpc("create_new_game_from_existing", {
+              p_original_game_id: gameStateId,
+              p_lobby_id: lobbyId,
+            })
+
+            if (newGameData) {
+              // Update the play again request with the new game ID
+              await supabase
+                .from("play_again_requests")
+                .update({
+                  requested_by: updatedRequestedBy,
+                  new_game_id: newGameData,
+                })
+                .eq("original_game_id", gameStateId)
+            }
+          } else {
+            // Just update the requested_by array
+            await supabase
+              .from("play_again_requests")
+              .update({ requested_by: updatedRequestedBy })
+              .eq("original_game_id", gameStateId)
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error handling play again:", err)
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   // If user has already requested to play again
@@ -158,6 +255,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [players, setPlayers] = useState<Profile[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(true)
 
   // Ship placement state
   const [placementPhase, setPlacementPhase] = useState(true)
@@ -173,8 +271,9 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const [winner, setWinner] = useState<string | null>(null)
   const [showWinnerMessage, setShowWinnerMessage] = useState(false)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
-  const [lastHitCoords, setLastHitCoords] = useState<{ row: number; col: number } | null>(null)
   const [hitAnimation, setHitAnimation] = useState<{ row: number; col: number; isHit: boolean } | null>(null)
+  const [recentMoves, setRecentMoves] = useState<GameMove[]>([])
+  const [gameStartAnimation, setGameStartAnimation] = useState(true)
 
   // Local boards for rendering
   const [myBoard, setMyBoard] = useState<number[][]>(
@@ -210,65 +309,394 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   const [myShipCells, setMyShipCells] = useState<{ [key: string]: number }>({})
   const [opponentShipCells, setOpponentShipCells] = useState<{ [key: string]: number }>({})
 
+  // Sunk ships
+  const [mySunkShips, setMySunkShips] = useState<number[]>([])
+  const [opponentSunkShips, setOpponentSunkShips] = useState<number[]>([])
+
+  // Audio refs
+  const hitSoundRef = useRef<HTMLAudioElement | null>(null)
+  const missSoundRef = useRef<HTMLAudioElement | null>(null)
+  const sunkSoundRef = useRef<HTMLAudioElement | null>(null)
+  const placeSoundRef = useRef<HTMLAudioElement | null>(null)
+  const gameStartSoundRef = useRef<HTMLAudioElement | null>(null)
+  const gameOverSoundRef = useRef<HTMLAudioElement | null>(null)
+
+  // Polling interval
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const gameStateIdRef = useRef<string | null>(null)
+
+  // Initialize audio elements
+  useEffect(() => {
+    hitSoundRef.current = new Audio("/sounds/hit.mp3")
+    missSoundRef.current = new Audio("/sounds/miss.mp3")
+    sunkSoundRef.current = new Audio("/sounds/sunk.mp3")
+    placeSoundRef.current = new Audio("/sounds/place.mp3")
+    gameStartSoundRef.current = new Audio("/sounds/game-start.mp3")
+    gameOverSoundRef.current = new Audio("/sounds/game-over.mp3")
+
+    return () => {
+      // Clean up audio elements
+      hitSoundRef.current = null
+      missSoundRef.current = null
+      sunkSoundRef.current = null
+      placeSoundRef.current = null
+      gameStartSoundRef.current = null
+      gameOverSoundRef.current = null
+    }
+  }, [])
+
+  // Play sound
+  function playSound(sound: "hit" | "miss" | "sunk" | "place" | "gameStart" | "gameOver") {
+    if (!soundEnabled) return
+
+    switch (sound) {
+      case "hit":
+        hitSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+      case "miss":
+        missSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+      case "sunk":
+        sunkSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+      case "place":
+        placeSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+      case "gameStart":
+        gameStartSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+      case "gameOver":
+        gameOverSoundRef.current?.play().catch(e => console.log("Error playing sound:", e))
+        break
+    }
+  }
+
   // Load game data
   useEffect(() => {
     let isActive = true
     let gameStateSubscription: RealtimeChannel | null = null
+    let gameMovesSubscription: RealtimeChannel | null = null
 
     async function loadGameData() {
       try {
+        console.log("Loading game data for lobby:", lobbyId)
+
         if (!currentUser) {
           router.push("/")
           return
         }
 
-        // Mock game state
-        const mockGameState: GameState = {
-          id: "mock-id",
-          lobby_id: lobbyId,
-          player1: currentUser.id,
-          player2: "opponent-id",
-          player1_board: Array(BOARD_SIZE)
-            .fill(0)
-            .map(() => Array(BOARD_SIZE).fill(0)),
-          player2_board: Array(BOARD_SIZE)
-            .fill(0)
-            .map(() => Array(BOARD_SIZE).fill(0)),
-          player1_shots: Array(BOARD_SIZE)
-            .fill(0)
-            .map(() => Array(BOARD_SIZE).fill(0)),
-          player2_shots: Array(BOARD_SIZE)
-            .fill(0)
-            .map(() => Array(BOARD_SIZE).fill(0)),
-          player1_ready: false,
-          player2_ready: false,
-          current_player: currentUser.id,
-          status: "setup",
-          winner: null,
+        // Check if game state exists for this lobby
+        const { data: existingGameState, error: existingGameError } = await supabase
+          .from("battleship_game_states")
+          .select("*")
+          .eq("lobby_id", lobbyId)
+          .single()
+
+        if (existingGameError && existingGameError.code !== "PGRST116") {
+          throw existingGameError
         }
 
+        let gameStateData: GameState
+
+        if (!existingGameState) {
+          // Create new game state
+          const { data: newGameState, error: newGameError } = await supabase
+            .from("battleship_game_states")
+            .insert({
+              lobby_id: lobbyId,
+              player1: currentUser.id,
+              player1_board: Array(BOARD_SIZE).fill(Array(BOARD_SIZE).fill(EMPTY)),
+              player2_board: Array(BOARD_SIZE).fill(Array(BOARD_SIZE).fill(EMPTY)),
+              player1_shots: Array(BOARD_SIZE).fill(Array(BOARD_SIZE).fill(EMPTY)),
+              player2_shots: Array(BOARD_SIZE).fill(Array(BOARD_SIZE).fill(EMPTY)),
+              player1_ready: false,
+              player2_ready: false,
+              current_player: currentUser.id,
+              status: "setup",
+              winner: null,
+            })
+            .select()
+            .single()
+
+          if (newGameError) {
+            throw newGameError
+          }
+
+          gameStateData = newGameState
+        } else if (existingGameState.player1 === currentUser.id || existingGameState.player2 === currentUser.id) {
+          // Player is already in the game
+          gameStateData = existingGameState
+        } else if (!existingGameState.player2) {
+          // Join as player 2
+          const { data: updatedGameState, error: updateError } = await supabase
+            .from("battleship_game_states")
+            .update({
+              player2: currentUser.id,
+            })
+            .eq("id", existingGameState.id)
+            .select()
+            .single()
+
+          if (updateError) {
+            throw updateError
+          }
+
+          gameStateData = updatedGameState
+        } else {
+          // Game is full
+          throw new Error("Game is full")
+        }
+
+        console.log("Game state:", gameStateData)
         if (isActive) {
-          setGameState(mockGameState)
-          setPlayers([
-            { id: currentUser.id, username: "You" },
-            { id: "opponent-id", username: "Opponent" },
-          ])
+          setGameState(gameStateData)
+          gameStateIdRef.current = gameStateData.id
+
+          // Set game phase based on status
+          if (gameStateData.status === "setup") {
+            setPlacementPhase(true)
+
+            // Check if player is ready
+            if (gameStateData.player1 === currentUser.id && gameStateData.player1_ready) {
+              setIsReady(true)
+
+              // Load player's board
+              if (gameStateData.player1_board) {
+                setMyBoard(gameStateData.player1_board)
+
+                // Reconstruct placed ships and ship cells
+                reconstructPlacedShips(gameStateData.player1_board)
+              }
+
+              // Check if waiting for opponent
+              if (!gameStateData.player2_ready) {
+                setWaitingForOpponent(true)
+              }
+            } else if (gameStateData.player2 === currentUser.id && gameStateData.player2_ready) {
+              setIsReady(true)
+
+              // Load player's board
+              if (gameStateData.player2_board) {
+                setMyBoard(gameStateData.player2_board)
+
+                // Reconstruct placed ships and ship cells
+                reconstructPlacedShips(gameStateData.player2_board)
+              }
+
+              // Check if waiting for opponent
+              if (!gameStateData.player1_ready) {
+                setWaitingForOpponent(true)
+              }
+            }
+
+            // If both players are ready, game should be in progress
+            if (gameStateData.player1_ready && gameStateData.player2_ready) {
+              setPlacementPhase(false)
+              setWaitingForOpponent(gameStateData.current_player !== currentUser.id)
+            }
+          } else if (gameStateData.status === "in_progress") {
+            setPlacementPhase(false)
+            setIsReady(true)
+
+            // Load boards
+            if (gameStateData.player1 === currentUser.id) {
+              setMyBoard(gameStateData.player1_board)
+              setOpponentBoard(createOpponentBoardView(gameStateData.player2_board, gameStateData.player1_shots))
+              setMyShots(gameStateData.player1_shots)
+              setOpponentShots(gameStateData.player2_shots)
+
+              // Reconstruct ship cells
+              reconstructPlacedShips(gameStateData.player1_board)
+              reconstructOpponentShipCells(gameStateData.player2_board, gameStateData.player1_shots)
+            } else {
+              setMyBoard(gameStateData.player2_board)
+              setOpponentBoard(createOpponentBoardView(gameStateData.player1_board, gameStateData.player2_shots))
+              setMyShots(gameStateData.player2_shots)
+              setOpponentShots(gameStateData.player1_shots)
+
+              // Reconstruct ship cells
+              reconstructPlacedShips(gameStateData.player2_board)
+              reconstructOpponentShipCells(gameStateData.player1_board, gameStateData.player2_shots)
+            }
+
+            setWaitingForOpponent(gameStateData.current_player !== currentUser.id)
+          } else if (gameStateData.status === "finished") {
+            setPlacementPhase(false)
+            setIsReady(true)
+            setGameOver(true)
+            setWinner(gameStateData.winner)
+
+            // Load boards
+            if (gameStateData.player1 === currentUser.id) {
+              setMyBoard(gameStateData.player1_board)
+              setOpponentBoard(gameStateData.player2_board) // Show full board at game end
+              setMyShots(gameStateData.player1_shots)
+              setOpponentShots(gameStateData.player2_shots)
+
+              // Reconstruct ship cells
+              reconstructPlacedShips(gameStateData.player1_board)
+              reconstructOpponentShipCells(gameStateData.player2_board, gameStateData.player1_shots)
+            } else {
+              setMyBoard(gameStateData.player2_board)
+              setOpponentBoard(gameStateData.player1_board) // Show full board at game end
+              setMyShots(gameStateData.player2_shots)
+              setOpponentShots(gameStateData.player1_shots)
+
+              // Reconstruct ship cells
+              reconstructPlacedShips(gameStateData.player2_board)
+              reconstructOpponentShipCells(gameStateData.player1_board, gameStateData.player2_shots)
+            }
+
+            setTimeout(() => {
+              setShowWinnerMessage(true)
+              playSound("gameOver")
+            }, 500)
+          }
         }
 
+        // Fetch player profiles
+        const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+
+        if (playerIds.length > 0) {
+          const { data: playerData, error: playerError } = await supabase
+            .from("profiles")
+            .select("*")
+            .in("id", playerIds)
+
+          if (playerError) {
+            console.error("Error fetching players:", playerError)
+          } else if (isActive) {
+            setPlayers(playerData || [])
+          }
+        }
+
+        // Fetch recent moves
+        const { data: movesData, error: movesError } = await supabase
+          .from("battleship_moves")
+          .select("*")
+          .eq("game_state_id", gameStateData.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+
+        if (!movesError && movesData && isActive) {
+          setRecentMoves(movesData)
+        }
+
+        // Set up real-time subscription for state changes
         gameStateSubscription = supabase
-          .channel("game_state_changes")
-          .on("broadcast", { event: "game_update" }, (payload) => {
-            if (!isActive) return
-            console.log("Game state updated:", payload)
-          })
+          .channel("battleship_game_state_changes")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "battleship_game_states",
+              filter: `id=eq.${gameStateData.id}`,
+            },
+            (payload) => {
+              console.log("Game state changed:", payload)
+              if (!isActive) return
+
+              const newState = payload.new as GameState
+              setGameState(newState)
+              setLastMoveTime(Date.now())
+
+              // Handle state changes
+              if (newState.status === "in_progress" && placementPhase) {
+                setPlacementPhase(false)
+                setWaitingForOpponent(newState.current_player !== currentUser.id)
+                playSound("gameStart")
+              }
+
+              // Update boards
+              if (newState.player1 === currentUser.id) {
+                setMyBoard(newState.player1_board)
+                if (newState.status === "finished") {
+                  setOpponentBoard(newState.player2_board) // Show full board at game end
+                } else {
+                  setOpponentBoard(createOpponentBoardView(newState.player2_board, newState.player1_shots))
+                }
+                setMyShots(newState.player1_shots)
+                setOpponentShots(newState.player2_shots)
+              } else {
+                setMyBoard(newState.player2_board)
+                if (newState.status === "finished") {
+                  setOpponentBoard(newState.player1_board) // Show full board at game end
+                } else {
+                  setOpponentBoard(createOpponentBoardView(newState.player1_board, newState.player2_shots))
+                }
+                setMyShots(newState.player2_shots)
+                setOpponentShots(newState.player1_shots)
+              }
+
+              // Update waiting state
+              setWaitingForOpponent(newState.current_player !== currentUser.id)
+
+              // Check for game over
+              if (newState.status === "finished" && !gameOver) {
+                setGameOver(true)
+                setWinner(newState.winner)
+                setTimeout(() => {
+                  setShowWinnerMessage(true)
+                  playSound("gameOver")
+                }, 500)
+              }
+            },
+          )
           .subscribe()
 
+        // Set up real-time subscription for moves
+        gameMovesSubscription = supabase
+          .channel("battleship_moves_changes")
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "battleship_moves",
+              filter: `game_state_id=eq.${gameStateData.id}`,
+            },
+            (payload) => {
+              console.log("New move detected:", payload)
+              if (!isActive) return
+
+              const newMove = payload.new as GameMove
+
+              // Update recent moves
+              setRecentMoves((prev) => [newMove, ...prev.slice(0, 4)])
+
+              // Show hit animation
+              setHitAnimation({
+                row: newMove.row,
+                col: newMove.col,
+                isHit: newMove.is_hit,
+              })
+
+              // Play sound
+              if (newMove.is_hit) {
+                playSound("hit")
+              } else {
+                playSound("miss")
+              }
+
+              setTimeout(() => setHitAnimation(null), 1000)
+            },
+          )
+          .subscribe()
+
+        // Start polling for updates
+        startPolling()
+
+        // Hide game start animation after a delay
         setTimeout(() => {
-          if (isActive) setLoading(false)
+          setGameStartAnimation(false)
         }, 1000)
       } catch (err: unknown) {
         console.error("Error loading game data:", err)
         if (isActive) setError((err as Error).message || "Failed to load game data")
+      } finally {
+        if (isActive) setLoading(false)
       }
     }
 
@@ -277,13 +705,199 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     return () => {
       isActive = false
       if (gameStateSubscription) gameStateSubscription.unsubscribe()
+      if (gameMovesSubscription) gameMovesSubscription.unsubscribe()
+      stopPolling()
     }
   }, [lobbyId, router, supabase, currentUser])
+
+  // Create opponent board view (hiding ships that haven't been hit)
+  function createOpponentBoardView(opponentBoard: number[][], myShots: number[][]): number[][] {
+    const boardView = Array(BOARD_SIZE)
+      .fill(0)
+      .map(() => Array(BOARD_SIZE).fill(0))
+
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        if (myShots[row][col] === MISS) {
+          boardView[row][col] = MISS
+        } else if (myShots[row][col] === HIT && opponentBoard[row][col] === SHIP) {
+          boardView[row][col] = HIT
+        } else if (myShots[row][col] === HIT && opponentBoard[row][col] === SUNK) {
+          boardView[row][col] = SUNK
+        } else {
+          boardView[row][col] = EMPTY
+        }
+      }
+    }
+
+    return boardView
+  }
+
+  // Reconstruct placed ships from board
+  function reconstructPlacedShips(board: number[][]) {
+    const shipCells: { [key: string]: number } = {}
+    const newPlacedShips: ShipPlacement[] = []
+
+    // First pass: identify all ship cells
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        if (board[row][col] === SHIP || board[row][col] === HIT || board[row][col] === SUNK) {
+          shipCells[`${row},${col}`] = -1
+        }
+      }
+    }
+
+    // Second pass: identify ships
+    let shipIndex = 0
+
+    for (const ship of SHIPS) {
+      // Look for horizontal ships
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col <= BOARD_SIZE - ship.size; col++) {
+          let isShip = true
+
+          for (let i = 0; i < ship.size; i++) {
+            const cellKey = `${row},${col + i}`
+            if (!(cellKey in shipCells)) {
+              isShip = false
+              break
+            }
+          }
+
+          if (isShip) {
+            // Found a ship
+            for (let i = 0; i < ship.size; i++) {
+              const cellKey = `${row},${col + i}`
+              shipCells[cellKey] = shipIndex
+            }
+
+            newPlacedShips.push({
+              shipIndex,
+              row,
+              col,
+              orientation: "horizontal",
+            })
+
+            shipIndex++
+            // Move to next ship
+            break
+          }
+        }
+
+        if (shipIndex > newPlacedShips.length) break
+      }
+
+      // If ship not found horizontally, look for vertical ships
+      if (shipIndex <= newPlacedShips.length) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          for (let row = 0; row <= BOARD_SIZE - ship.size; row++) {
+            let isShip = true
+
+            for (let i = 0; i < ship.size; i++) {
+              const cellKey = `${row + i},${col}`
+              if (!(cellKey in shipCells)) {
+                isShip = false
+                break
+              }
+            }
+
+            if (isShip) {
+              // Found a ship
+              for (let i = 0; i < ship.size; i++) {
+                const cellKey = `${row + i},${col}`
+                shipCells[cellKey] = shipIndex
+              }
+
+              newPlacedShips.push({
+                shipIndex,
+                row,
+                col,
+                orientation: "vertical",
+              })
+
+              shipIndex++
+              // Move to next ship
+              break
+            }
+          }
+
+          if (shipIndex > newPlacedShips.length) break
+        }
+      }
+    }
+
+    setMyShipCells(shipCells)
+    setPlacedShips(newPlacedShips)
+    setCurrentShipIndex(SHIPS.length)
+  }
+
+  // Reconstruct opponent ship cells
+  function reconstructOpponentShipCells(opponentBoard: number[][], myShots: number[][]) {
+    const shipCells: { [key: string]: number } = {}
+
+    // Identify hit ship cells
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        if ((opponentBoard[row][col] === SHIP || opponentBoard[row][col] === SUNK) && myShots[row][col] === HIT) {
+          shipCells[`${row},${col}`] = 0
+        }
+      }
+    }
+
+    setOpponentShipCells(shipCells)
+  }
+
+  // Start polling for state updates
+  function startPolling() {
+    console.log("Starting polling for game state updates")
+
+    stopPolling()
+
+    pollingIntervalRef.current = setInterval(() => {
+      if (gameStateIdRef.current) {
+        console.log("Polling for game state updates")
+        fetchLatestGameState()
+      }
+    }, 5000) // Poll every 5 seconds
+  }
+
+  function stopPolling() {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+  }
+
+  async function fetchLatestGameState() {
+    try {
+      if (!gameStateIdRef.current) return
+
+      const { data, error } = await supabase
+        .from("battleship_game_states")
+        .select("*")
+        .eq("id", gameStateIdRef.current)
+        .single()
+
+      if (error) {
+        console.error("Error fetching latest game state:", error)
+        return
+      }
+
+      console.log("Fetched latest game state:", data)
+      setGameState(data)
+      setLastMoveTime(Date.now())
+
+      // Update game state based on fetched data
+      // This is handled by the subscription, but we'll update it here as well for redundancy
+    } catch (err) {
+      console.error("Error in fetchLatestGameState:", err)
+    }
+  }
 
   // Handle ship placement
   function handleCellClick(row: number, col: number, isOpponentBoard = false) {
     if (isOpponentBoard) {
-      if (placementPhase || waitingForOpponent) return
+      if (placementPhase || waitingForOpponent || gameOver) return
       handleShot(row, col)
       return
     }
@@ -325,6 +939,9 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
         },
       ])
 
+      // Play sound
+      playSound("place")
+
       // Move to next ship
       if (currentShipIndex < SHIPS.length - 1) {
         setCurrentShipIndex(currentShipIndex + 1)
@@ -336,74 +953,34 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   }
 
   // Mark player as ready
-  function markAsReady() {
+  async function markAsReady() {
     if (!gameState || placedShips.length < SHIPS.length) return
 
     setIsReady(true)
-
-    // Update game state
-    const updatedGameState = {
-      ...gameState,
-      player1_ready: true,
-    }
-    setGameState(updatedGameState)
-
     setWaitingForOpponent(true)
-    setTimeout(() => {
-      if (gameState) {
-        // Create a random opponent board
-        const opponentBoardData = createRandomBoard()
-        setOpponentBoard(opponentBoardData)
 
-        // Update game state
-        const updatedGameState = {
-          ...gameState,
-          player1_ready: true,
-          player2_ready: true,
-          status: "in_progress" as const,
-        }
-        setGameState(updatedGameState)
+    try {
+      // Update game state in database
+      const { error } = await supabase.rpc("battleship_mark_player_ready", {
+        p_game_state_id: gameState.id,
+        p_player_id: currentUser?.id,
+        p_board: myBoard,
+      })
+
+      if (error) {
+        console.error("Error marking player as ready:", error)
+        setIsReady(false)
         setWaitingForOpponent(false)
-        setPlacementPhase(false)
+        return
       }
-    }, 2000)
-  }
 
-  // Create a random board for the opponent
-  function createRandomBoard(): number[][] {
-    const board = Array(BOARD_SIZE)
-      .fill(0)
-      .map(() => Array(BOARD_SIZE).fill(0))
-    const shipCells: { [key: string]: number } = {}
-
-    for (let shipIndex = 0; shipIndex < SHIPS.length; shipIndex++) {
-      const ship = SHIPS[shipIndex]
-      let placed = false
-
-      while (!placed) {
-        const orientation = Math.random() > 0.5 ? "horizontal" : "vertical"
-        const row = Math.floor(Math.random() * BOARD_SIZE)
-        const col = Math.floor(Math.random() * BOARD_SIZE)
-
-        if (isValidPlacementOnBoard(row, col, ship.size, orientation, board)) {
-          if (orientation === "horizontal") {
-            for (let i = 0; i < ship.size; i++) {
-              board[row][col + i] = SHIP
-              shipCells[`${row},${col + i}`] = shipIndex
-            }
-          } else {
-            for (let i = 0; i < ship.size; i++) {
-              board[row + i][col] = SHIP
-              shipCells[`${row + i},${col}`] = shipIndex
-            }
-          }
-          placed = true
-        }
-      }
+      // Fetch updated game state
+      fetchLatestGameState()
+    } catch (err) {
+      console.error("Error in markAsReady:", err)
+      setIsReady(false)
+      setWaitingForOpponent(false)
     }
-
-    setOpponentShipCells(shipCells)
-    return board
   }
 
   // Check if ship placement is valid on a specific board
@@ -477,186 +1054,36 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   }
 
   // Handle shot at opponent's board
-  function handleShot(row: number, col: number) {
+  async function handleShot(row: number, col: number) {
     if (placementPhase || gameOver || waitingForOpponent) return
     if (!gameState || gameState.current_player !== currentUser?.id) return
 
     // Check if cell was already shot
     if (myShots[row][col] !== EMPTY) return
 
-    // Update shots
-    const newShots = [...myShots]
-    const isHit = opponentBoard[row][col] === SHIP
-    newShots[row][col] = isHit ? HIT : MISS
-    setMyShots(newShots)
-
-    // Update opponent board display
-    const newOpponentBoard = [...opponentBoard]
-    if (isHit) {
-      newOpponentBoard[row][col] = HIT
-      setLastHitCoords({ row, col })
-
-      // Update ship health
-      const shipIndex = opponentShipCells[`${row},${col}`]
-      if (shipIndex !== undefined) {
-        const newHealth = { ...opponentShipHealth }
-        newHealth[shipIndex] = newHealth[shipIndex] - 1
-        setOpponentShipHealth(newHealth)
-      }
-    } else {
-      newOpponentBoard[row][col] = MISS
-    }
-    setOpponentBoard(newOpponentBoard)
-
-    // Show hit animation
-    setHitAnimation({ row, col, isHit })
-    setTimeout(() => setHitAnimation(null), 1000)
-
-    // Check for win
-    if (checkForWin(opponentShipHealth)) {
-      handleWin(currentUser?.id || "")
-    } else {
-      // Switch turns
+    try {
       setWaitingForOpponent(true)
-      setTimeout(() => {
-        simulateOpponentTurn()
-      }, 1500)
-    }
-  }
 
-  // Simulate opponent's turn
-  function simulateOpponentTurn() {
-    if (!gameState) return
+      // Make move in database
+      const { error } = await supabase.rpc("battleship_make_move", {
+        p_game_state_id: gameState.id,
+        p_player_id: currentUser?.id,
+        p_row: row,
+        p_col: col,
+      })
 
-    // Update current player
-    const updatedGameState = {
-      ...gameState,
-      current_player: gameState.player2,
-    }
-    setGameState(updatedGameState)
-
-    // Simulate opponent thinking
-    setTimeout(() => {
-      let row, col
-
-      if (lastHitCoords) {
-        // Try to hit adjacent cells
-        const directions = [
-          [-1, 0], // up
-          [1, 0], // down
-          [0, -1], // left
-          [0, 1], // right
-        ]
-
-        // Shuffle directions
-        for (let i = directions.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1))
-          ;[directions[i], directions[j]] = [directions[j], directions[i]]
-        }
-
-        let validMove = false
-
-        for (const [dr, dc] of directions) {
-          const newRow = lastHitCoords.row + dr
-          const newCol = lastHitCoords.col + dc
-
-          if (
-            newRow >= 0 &&
-            newRow < BOARD_SIZE &&
-            newCol >= 0 &&
-            newCol < BOARD_SIZE &&
-            opponentShots[newRow][newCol] === EMPTY
-          ) {
-            row = newRow
-            col = newCol
-            validMove = true
-            break
-          }
-        }
-
-        if (!validMove) {
-          // If no valid adjacent moves, reset lastHitCoords and make a random move
-          setLastHitCoords(null)
-          do {
-            row = Math.floor(Math.random() * BOARD_SIZE)
-            col = Math.floor(Math.random() * BOARD_SIZE)
-          } while (opponentShots[row][col] !== EMPTY)
-        }
-      } else {
-        // Random shot
-        do {
-          row = Math.floor(Math.random() * BOARD_SIZE)
-          col = Math.floor(Math.random() * BOARD_SIZE)
-        } while (opponentShots[row][col] !== EMPTY)
-      }
-
-      // Update opponent shots
-      const newOpponentShots = [...opponentShots]
-      const isHit = myBoard[row][col] === SHIP
-      newOpponentShots[row][col] = isHit ? HIT : MISS
-      setOpponentShots(newOpponentShots)
-
-      // Update my board display
-      const newMyBoard = [...myBoard]
-      if (isHit) {
-        newMyBoard[row][col] = HIT
-        setLastHitCoords({ row, col })
-
-        // Update ship health
-        const shipIndex = myShipCells[`${row},${col}`]
-        if (shipIndex !== undefined) {
-          const newHealth = { ...myShipHealth }
-          newHealth[shipIndex] = newHealth[shipIndex] - 1
-          setMyShipHealth(newHealth)
-        }
-      } else {
-        newMyBoard[row][col] = MISS
-        setLastHitCoords(null)
-      }
-      setMyBoard(newMyBoard)
-
-      // Show hit animation
-      setHitAnimation({ row, col, isHit })
-      setTimeout(() => setHitAnimation(null), 1000)
-
-      // Check for opponent win
-      if (checkForWin(myShipHealth)) {
-        handleWin(gameState.player2)
-      } else {
-        // Switch turns back to player
-        const updatedGameState = {
-          ...gameState,
-          current_player: gameState.player1,
-        }
-        setGameState(updatedGameState)
+      if (error) {
+        console.error("Error making move:", error)
         setWaitingForOpponent(false)
+        return
       }
-    }, 1000)
-  }
 
-  // Check if all ships are sunk
-  function checkForWin(shipHealth: { [key: number]: number }): boolean {
-    return Object.values(shipHealth).every((health) => health <= 0)
-  }
-
-  // Handle win
-  function handleWin(winnerId: string) {
-    if (!gameState) return
-
-    setGameOver(true)
-    setWinner(winnerId)
-    setWaitingForOpponent(false)
-
-    const updatedGameState = {
-      ...gameState,
-      status: "finished",
-      winner: winnerId,
+      // Fetch updated game state
+      fetchLatestGameState()
+    } catch (err) {
+      console.error("Error in handleShot:", err)
+      setWaitingForOpponent(false)
     }
-    setGameState(updatedGameState)
-
-    setTimeout(() => {
-      setShowWinnerMessage(true)
-    }, 500)
   }
 
   // Place ships randomly
@@ -673,7 +1100,11 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
       const ship = SHIPS[shipIndex]
       let placed = false
 
-      while (!placed) {
+      let attempts = 0
+      const maxAttempts = 100
+
+      while (!placed && attempts < maxAttempts) {
+        attempts++
         const orientation = Math.random() > 0.5 ? "horizontal" : "vertical"
         const row = Math.floor(Math.random() * BOARD_SIZE)
         const col = Math.floor(Math.random() * BOARD_SIZE)
@@ -700,11 +1131,16 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
           placed = true
         }
       }
+
+      if (!placed) {
+        // If we couldn't place a ship after max attempts, reset and try again
+        return placeShipsRandomly()
+      }
     }
 
     setMyBoard(newBoard)
-    setPlacedShips(newPlacedShips)
     setMyShipCells(newShipCells)
+    setPlacedShips(newPlacedShips)
     setCurrentShipIndex(SHIPS.length)
   }
 
@@ -713,48 +1149,13 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     const cellKey = `${row},${col}`
     const shipIndex = isOpponentBoard ? opponentShipCells[cellKey] : myShipCells[cellKey]
 
-    if (shipIndex === undefined) return "#4B5563" 
-    return SHIPS[shipIndex].color
-  }
-
-  function resetGame() {
-    setPlacementPhase(true)
-    setCurrentShipIndex(0)
-    setPlacedShips([])
-    setIsReady(false)
-    setWaitingForOpponent(false)
-    setGameOver(false)
-    setWinner(null)
-    setShowWinnerMessage(false)
-    setMyBoard(
-      Array(BOARD_SIZE)
-        .fill(0)
-        .map(() => Array(BOARD_SIZE).fill(0)),
-    )
-    setOpponentBoard(
-      Array(BOARD_SIZE)
-        .fill(0)
-        .map(() => Array(BOARD_SIZE).fill(0)),
-    )
-    setMyShots(
-      Array(BOARD_SIZE)
-        .fill(0)
-        .map(() => Array(BOARD_SIZE).fill(0)),
-    )
-    setOpponentShots(
-      Array(BOARD_SIZE)
-        .fill(0)
-        .map(() => Array(BOARD_SIZE).fill(0)),
-    )
-    setMyShipHealth(SHIPS.reduce((acc, ship, index) => ({ ...acc, [index]: ship.size }), {}))
-    setOpponentShipHealth(SHIPS.reduce((acc, ship, index) => ({ ...acc, [index]: ship.size }), {}))
-    setMyShipCells({})
-    setOpponentShipCells({})
-    setLastHitCoords(null)
+    if (shipIndex === undefined) return "#4B5563" // Default gray
+    return SHIPS[shipIndex]?.color || "#4B5563"
   }
 
   async function handleManualRefresh() {
     setIsRefreshing(true)
+    await fetchLatestGameState()
     setTimeout(() => setIsRefreshing(false), 500)
   }
 
@@ -768,6 +1169,10 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
   function isMyTurn() {
     return gameState && gameState.current_player === currentUser?.id
+  }
+
+  function toggleSound() {
+    setSoundEnabled(!soundEnabled)
   }
 
   if (loading) {
@@ -801,6 +1206,14 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2 md:mb-0">Battleship</h2>
 
           <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleSound}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300"
+              aria-label={soundEnabled ? "Mute sound" : "Enable sound"}
+            >
+              {soundEnabled ? <FaVolumeUp className="text-black" /> : <FaVolumeMute className="text-black" />}
+            </button>
+            
             <button
               onClick={handleManualRefresh}
               className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 ${isRefreshing ? "animate-spin" : ""}`}
@@ -887,8 +1300,8 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* My Board */}
           <div>
-            {/* My Board */}
             <h3 className="text-lg font-bold mb-2">Your Fleet</h3>
             <div className="bg-blue-100 p-2 rounded-lg">
               <div className="grid grid-cols-10 gap-1">
@@ -940,6 +1353,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               </div>
             </div>
 
+            {/* Ship status */}
             <div className="mt-4 grid grid-cols-2 gap-2">
               {SHIPS.map((ship, index) => (
                 <div key={`my-ship-${index}`} className="flex items-center">
@@ -952,8 +1366,8 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
             </div>
           </div>
 
+          {/* Opponent's Board */}
           <div>
-            {/* Opponent's Board */}
             <h3 className="text-lg font-bold mb-2">Enemy Waters</h3>
             <div className="bg-red-100 p-2 rounded-lg">
               <div className="grid grid-cols-10 gap-1">
@@ -969,7 +1383,15 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
                         myShots[rowIndex][colIndex] === EMPTY
                           ? "cursor-pointer hover:bg-red-300"
                           : ""
-                      } ${cell === HIT ? "bg-red-500" : cell === MISS ? "bg-gray-300" : "bg-red-200"} ${
+                      } ${
+                        cell === SHIP 
+                          ? "bg-opacity-90" 
+                          : cell === HIT 
+                            ? "bg-red-500" 
+                            : cell === MISS 
+                              ? "bg-gray-300" 
+                              : "bg-red-200"
+                      } ${
                         hitAnimation && hitAnimation.row === rowIndex && hitAnimation.col === colIndex
                           ? hitAnimation.isHit
                             ? "animate-hit"
@@ -977,6 +1399,9 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
                           : ""
                       }`}
                       onClick={() => handleCellClick(rowIndex, colIndex, true)}
+                      style={{
+                        backgroundColor: gameOver && cell === SHIP ? getShipColor(rowIndex, colIndex, true) : undefined,
+                      }}
                     >
                       {cell === HIT && <div className="w-2 h-2 bg-white rounded-full"></div>}
                       {cell === MISS && <div className="w-2 h-2 bg-gray-500 rounded-full"></div>}
@@ -986,6 +1411,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               </div>
             </div>
 
+            {/* Ship status */}
             <div className="mt-4 grid grid-cols-2 gap-2">
               {SHIPS.map((ship, index) => (
                 <div key={`opponent-ship-${index}`} className="flex items-center">
@@ -998,7 +1424,69 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
             </div>
           </div>
         </div>
+
+        {/* Recent moves */}
+        {recentMoves.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-bold mb-2">Recent Moves</h3>
+            <div className="bg-gray-100 p-3 rounded-lg">
+              <ul className="space-y-1">
+                {recentMoves.map((move) => (
+                  <li key={move.id} className="text-sm">
+                    {getPlayerName(move.player_id)} fired at ({move.row}, {move.col}) and{" "}
+                    {move.is_hit ? (
+                      <span className="text-red-500 font-bold">hit</span>
+                    ) : (
+                      <span className="text-gray-500">missed</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </main>
+
+      <style jsx global>{`
+        @keyframes hit {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.5); background-color: #EF4444; }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes miss {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); background-color: #9CA3AF; }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes winner {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes fadeIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        
+        .animate-hit {
+          animation: hit 0.5s ease-in-out;
+        }
+        
+        .animate-miss {
+          animation: miss 0.5s ease-in-out;
+        }
+        
+        .animate-winner {
+          animation: winner 1s ease-in-out infinite;
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-in-out;
+        }
+      `}</style>
     </div>
   )
 }

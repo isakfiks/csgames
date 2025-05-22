@@ -35,7 +35,7 @@ export default function LeaderboardPage() {
 
       if (!response.ok) {
         throw new Error("Failed to fetch leaderboard data")
-      }
+      } 
 
       const data = await response.json()
       setLeaderboard(data)
@@ -66,6 +66,61 @@ export default function LeaderboardPage() {
         return "#000000"
     }
   }
+
+  // Loading skeleton component
+  const LeaderboardSkeleton = () => (
+    <>
+      {/* Top 3 players skeleton */}
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+            <div className="p-6 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse mb-4"></div>
+              <div className="h-6 w-36 bg-gray-200 animate-pulse mb-2 rounded"></div>
+              <div className="h-8 w-24 bg-gray-200 animate-pulse my-2 rounded"></div>
+              <div className="h-4 w-40 bg-gray-200 animate-pulse rounded"></div>
+            </div>
+          </div>
+        ))}
+      </motion.div>
+
+      {/* Table skeleton */}
+      <motion.div
+        className="border-2 border-gray-200 rounded-lg overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-100 border-b-2 border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded"></div></th>
+                <th className="px-6 py-3 text-left"><div className="h-5 w-24 bg-gray-200 animate-pulse rounded"></div></th>
+                <th className="px-6 py-3 text-right"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
+                <th className="px-6 py-3 text-right"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
+                <th className="px-6 py-3 text-right"><div className="h-5 w-20 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...Array(10)].map((_, i) => (
+                <tr key={i} className="border-b border-gray-200">
+                  <td className="px-6 py-4"><div className="h-5 w-6 bg-gray-200 animate-pulse rounded"></div></td>
+                  <td className="px-6 py-4"><div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div></td>
+                  <td className="px-6 py-4"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
+                  <td className="px-6 py-4"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
+                  <td className="px-6 py-4"><div className="h-5 w-12 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+    </>
+  )
 
   return (
     <motion.div
@@ -151,24 +206,7 @@ export default function LeaderboardPage() {
         </motion.div>
 
         {isLoading && !isRefreshing ? (
-          <motion.div
-            className="flex justify-center items-center h-64"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <motion.p
-              animate={{
-                scale: [1, 1.05, 1],
-                opacity: [1, 0.8, 1],
-              }}
-              transition={{
-                repeat: Number.POSITIVE_INFINITY,
-                duration: 1.5,
-              }}
-            >
-              Loading leaderboard...
-            </motion.p>
-          </motion.div>
+          <LeaderboardSkeleton />
         ) : error ? (
           <motion.div
             className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg"
