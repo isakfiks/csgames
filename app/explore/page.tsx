@@ -377,24 +377,46 @@ export default function ExplorePage() {
   if (isLoading) {
     return (
       <motion.div
-        className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]"
+        className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        <motion.p
-          className="text-black"
-          animate={{
-            scale: [1, 1.05, 1],
-            opacity: [1, 0.8, 1],
-          }}
-          transition={{
-            repeat: Number.POSITIVE_INFINITY,
-            duration: 1.5,
-          }}
-        >
-          Loading...
-        </motion.p>
+        <div className="max-w-6xl mx-auto mb-8">
+          <div className="flex justify-between items-center">
+            <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-8 w-40 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <div className="h-10 w-48 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-6 w-24 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+            <div className="h-12 w-full bg-gray-200 rounded-lg animate-pulse"></div>
+          </div>
+          
+          {/* Skeleton for games grid */}
+          <div className="mb-8">
+            <div className="h-8 w-40 bg-gray-200 rounded mb-4 animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                  <div className="h-48 bg-gray-200 animate-pulse"></div>
+                  <div className="p-4">
+                    <div className="h-6 w-3/4 bg-gray-200 rounded mb-2 animate-pulse"></div>
+                    <div className="h-4 w-full bg-gray-200 rounded mb-2 animate-pulse"></div>
+                    <div className="h-4 w-1/2 bg-gray-200 rounded mb-4 animate-pulse"></div>
+                    <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </motion.div>
     )
   }
