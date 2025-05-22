@@ -353,7 +353,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
     try {
       // Set up the AI opponent
-      const { data, error } = await supabase.rpc("setup_ai_opponent", {
+      const { error } = await supabase.rpc("setup_ai_opponent", {
         p_lobby_id: resolvedParams.id,
       });
 
@@ -371,22 +371,19 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     }
   }
 
-  async function waitForHumanOpponent() {
+  function waitForHumanOpponent() {
     if (!gameState) return;
 
-    try {
-      // Update the game state to waiting
-      const { error } = await supabase.from("game_states").update({ status: "waiting" }).eq("id", gameState.id);
-
-      if (error) {
-        console.error("Error updating game state:", error);
-      }
-
-      // Hide the AI option
-      setShowAIOption(false);
-    } catch (err) {
-      console.error("Error in waitForHumanOpponent:", err);
-    }
+    supabase
+      .from("game_states")
+      .update({ status: "waiting" })
+      .eq("id", gameState.id)
+      .then(() => {
+        setShowAIOption(false);
+      })
+      .catch((err) => {
+        console.error("Error updating game state:", err);
+      });
   }
 
   function getPlayerName(playerId: string | null | undefined) {
@@ -419,7 +416,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const isInGame = gameState && (gameState.player1 === currentUser?.id || gameState.player2 === currentUser?.id);
   const canJoin = gameState && gameState.player2 === null && !isInGame && !isCreator && gameState.status === "waiting";
   const isGameFull = gameState && gameState.player1 && gameState.player2;
-  const isPending = gameState && gameState.status === "pending";
   const isWaiting = gameState && gameState.status === "waiting";
 
   // If showing AI option, render that instead of the regular lobby
