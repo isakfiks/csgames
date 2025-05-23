@@ -1066,15 +1066,62 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
       if (error) {
         console.error("Error making move:", error)
-        setWaitingForOpponent(false)
-        return
+        
+        // Fallback: Manual update if the RPC call fails
+        if (error.code === '42883') { // Array length function error
+          console.log("Attempting fallback method for move...");
+          
+          // Determine which player is making the move
+          const isPlayer1 = gameState.player1 === currentUser?.id;
+          
+          // Create a deep copy of current game state to modify
+          const opponentBoardField = isPlayer1 ? 'player2_board' : 'player1_board';
+          const shotsField = isPlayer1 ? 'player1_shots' : 'player2_shots';
+          const opponentBoard = gameState[opponentBoardField];
+          const newShots = JSON.parse(JSON.stringify(gameState[shotsField]));
+          
+          // Update the shots array
+          newShots[row][col] = opponentBoard[row][col] === SHIP ? HIT : MISS;
+          
+          // Record whether the shot was a hit
+          const isHit = opponentBoard[row][col] === SHIP;
+          
+          // Update the game state
+          const { error: updateError } = await supabase
+            .from("battleship_game_states")
+            .update({
+              [shotsField]: newShots,
+              current_player: isPlayer1 ? gameState.player2 : gameState.player1
+            })
+            .eq("id", gameState.id);
+            
+          // Also record the move in the moves table
+          const { error: moveError } = await supabase
+            .from("battleship_moves")
+            .insert({
+              game_state_id: gameState.id,
+              player_id: currentUser?.id,
+              row: row,
+              col: col,
+              is_hit: isHit
+            });
+            
+          if (updateError || moveError) {
+            console.error("Error with fallback update:", updateError || moveError);
+            setWaitingForOpponent(false);
+            return;
+          }
+        } else {
+          setWaitingForOpponent(false);
+          return;
+        }
       }
 
       // Fetch updated game state
-      fetchLatestGameState()
+      fetchLatestGameState();
     } catch (err) {
-      console.error("Error in handleShot:", err)
-      setWaitingForOpponent(false)
+      console.error("Error in handleShot:", err);
+      setWaitingForOpponent(false);
     }
   }
 
