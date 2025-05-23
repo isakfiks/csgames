@@ -181,6 +181,16 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
     setParticles([]);
   };
   
+  useEffect(() => {
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = styles;
+    document.head.appendChild(styleEl);
+    
+    return () => {
+      document.head.removeChild(styleEl);
+    };
+  }, []);
+  
   return (
     <div className="border-2 border-black rounded-lg p-4 bg-white shadow-lg">
       <div className="flex justify-between items-center mb-4">
