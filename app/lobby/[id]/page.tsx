@@ -594,7 +594,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                 {gameState?.player1 === currentUser?.id && (
                   <div className="flex items-center mt-2 text-xs text-gray-600">
                     <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                    <p>That's you!</p>
+                    <p>That&apos;s you!</p>
                   </div>
                 )}
               </div>
@@ -633,7 +633,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                 {gameState?.player2 === currentUser?.id && (
                   <div className="flex items-center mt-2 text-xs text-gray-600">
                     <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                    <p>That's you!</p>
+                    <p>That&apos;s you!</p>
                   </div>
                 )}
               </div>
