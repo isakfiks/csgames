@@ -40,7 +40,6 @@ export default function ChatWidget() {
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [triggerWord, setTriggerWord] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const [messageReactions, setMessageReactions] = useState<Record<string, Record<string, number>>>({});
@@ -176,7 +175,6 @@ export default function ChatWidget() {
           if (words.some(word => msgText.includes(word))) {
             if (effect === 'confetti') {
               setShowConfetti(true);
-              setTriggerWord(words.find(word => msgText.includes(word)) || '');
               setTimeout(() => setShowConfetti(false), 5000);
             }
             break;
@@ -297,7 +295,6 @@ export default function ChatWidget() {
           if (words.some(word => msgText.includes(word))) {
             if (effect === 'confetti') {
               setShowConfetti(true);
-              setTriggerWord(words.find(word => msgText.includes(word)) || '');
               setTimeout(() => setShowConfetti(false), 5000);
             }
             break;
@@ -675,7 +672,7 @@ export default function ChatWidget() {
             
             {/* Help text for special commands */}
             <div className={`px-3 py-1 text-xs ${chatTheme === 'light' ? 'bg-gray-100 text-gray-600' : chatTheme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-purple-900/30 text-purple-200'}`}>
-              Try typing special words like "wow", "rainbow", "important", or use /theme light|dark|funky
+              Try typing special words like &quot;wow&quot;, &quot;rainbow&quot;, &quot;important&quot;, or use /theme light|dark|funky
             </div>
           </motion.div>
         )}
