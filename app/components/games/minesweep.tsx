@@ -56,6 +56,48 @@ interface SoundEffects {
   win: HTMLAudioElement;
 }
 
+type TutorialStep = {
+  title: string;
+  description: string;
+  demo?: Cell[][];
+  action: string;
+};
+
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    title: "Welcome to Minesweeper!",
+    description: "Let's learn how to play this classic game step by step.",
+    action: "Next",
+  },
+  {
+    title: "The Basics",
+    description: "The goal is to clear the field without hitting any mines. Numbers show how many mines are nearby.",
+    demo: [
+      [{ value: 1, state: "revealed", x: 0, y: 0 }, { value: "mine", state: "flagged", x: 1, y: 0 }],
+      [{ value: 1, state: "revealed", x: 0, y: 1 }, { value: 1, state: "revealed", x: 1, y: 1 }],
+    ],
+    action: "Try it!",
+  },
+  {
+    title: "Left Click",
+    description: "Left click to reveal a cell. Try revealing the safe cells!",
+    demo: [
+      [{ value: 1, state: "hidden", x: 0, y: 0 }, { value: 1, state: "hidden", x: 1, y: 0 }],
+      [{ value: 0, state: "hidden", x: 0, y: 1 }, { value: 1, state: "hidden", x: 1, y: 1 }],
+    ],
+    action: "Practice",
+  },
+  {
+    title: "Right Click",
+    description: "Right click (or long press) to place a flag where you think a mine is.",
+    demo: [
+      [{ value: 2, state: "revealed", x: 0, y: 0 }, { value: "mine", state: "hidden", x: 1, y: 0 }],
+      [{ value: "mine", state: "hidden", x: 0, y: 1 }, { value: 2, state: "revealed", x: 1, y: 1 }],
+    ],
+    action: "Try flagging",
+  },
+];
+
 export default function MinesweeperGame({ }: { lobbyId: string; currentUser: User | null }) {
   const [grid, setGrid] = useState<Cell[][]>([])
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">("playing")
@@ -77,7 +119,10 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
   const [sounds, setSounds] = useState<SoundEffects | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
-  
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [tutorialDemo, setTutorialDemo] = useState<Cell[][]>([]);
+
   // Initialize the game
   useEffect(() => {
     initializeGame()
@@ -463,6 +508,102 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
     setShowTutorial(prev => !prev);
   }, []);
 
+  // Add tutorial navigation
+  const handleNextTutorialStep = useCallback(() => {
+    if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+      setTutorialStep(prev => prev + 1);
+      setIsDemoMode(true);
+    } else {
+      setShowTutorial(false);
+      setIsDemoMode(false);
+      initializeGame();
+    }
+  }, [tutorialStep, initializeGame]);
+
+  // Initialize game on difficulty change
+  useEffect(() => {
+    initializeGame();
+  }, [difficulty, initializeGame]);
+
+  // Initialize tutorial demo when step changes
+  useEffect(() => {
+    if (TUTORIAL_STEPS[tutorialStep].demo) {
+      setTutorialDemo(JSON.parse(JSON.stringify(TUTORIAL_STEPS[tutorialStep].demo)));
+    }
+  }, [tutorialStep]);
+
+  // Modify tutorial overlay JSX - replace the demo section
+  const renderTutorial = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">{TUTORIAL_STEPS[tutorialStep].title}</h3>
+          <button 
+            onClick={() => setShowTutorial(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="mb-6">{TUTORIAL_STEPS[tutorialStep].description}</p>
+
+        {tutorialDemo.length > 0 && (
+          <div className="mb-6 flex justify-center">
+            <div className="border-2 border-gray-300 rounded-lg p-2 bg-gray-100">
+              {tutorialDemo.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex">
+                  {row.map((cell, colIndex) => (
+                    <button
+                      key={`${rowIndex}-${colIndex}`}
+                      className={`w-12 h-12 flex items-center justify-center border border-gray-300 font-bold
+                        ${cell.state === "hidden" ? "bg-gray-300 hover:bg-gray-400" : "bg-gray-100"}
+                        ${getCellColor(cell)} transition-all duration-300
+                        ${cell.state === "hidden" ? "animate-pulse" : ""}`}
+                      onClick={() => {
+                        if (isDemoMode) {
+                          const newDemo = [...tutorialDemo.map(row => [...row])];
+                          newDemo[rowIndex][colIndex].state = "revealed";
+                          setTutorialDemo(newDemo);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (isDemoMode) {
+                          const newDemo = [...tutorialDemo.map(row => [...row])];
+                          newDemo[rowIndex][colIndex].state = 
+                            newDemo[rowIndex][colIndex].state === "hidden" ? "flagged" : "hidden";
+                          setTutorialDemo(newDemo);
+                        }
+                      }}
+                    >
+                      {getCellContent(cell)}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between">
+          <button
+            onClick={() => setShowTutorial(false)}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+          >
+            Skip Tutorial
+          </button>
+          <button
+            onClick={handleNextTutorialStep}
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+          >
+            {TUTORIAL_STEPS[tutorialStep].action}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-4xl mx-auto mb-4 md:mb-8">
@@ -615,33 +756,7 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
           </div>
         )}
 
-        {showTutorial && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg p-6 max-w-lg w-full">
-              <h3 className="text-xl font-bold mb-4">How to Play Minesweeper</h3>
-              <div className="space-y-3">
-                <p>🖱️ <strong>Left Click:</strong> Reveal a cell</p>
-                <p>🚩 <strong>Right Click:</strong> Place/Remove a flag</p>
-                <p>⌛ <strong>Long Press:</strong> Place a flag (mobile)</p>
-                <p>👆 <strong>Double Click:</strong> Reveal adjacent cells when the correct number of flags are placed</p>
-                <div className="mt-4">
-                  <p className="mb-2"><strong>Numbers indicate:</strong></p>
-                  <p>The number of mines in the 8 surrounding cells</p>
-                </div>
-                <div className="mt-4">
-                  <p className="mb-2"><strong>Goal:</strong></p>
-                  <p>Reveal all cells without mines and flag all mines to win!</p>
-                </div>
-              </div>
-              <button
-                onClick={toggleTutorial}
-                className="mt-6 bg-black text-white px-4 py-2 rounded-lg w-full"
-              >
-                Got it!
-              </button>
-            </div>
-          </div>
-        )}
+        {showTutorial && renderTutorial()}
 
         <div className="flex justify-center">
           <div
