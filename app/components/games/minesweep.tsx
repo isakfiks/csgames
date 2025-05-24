@@ -441,10 +441,10 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   // Initialize sound effects
   useEffect(() => {
     setSounds({
-      reveal: new Audio("/sounds/reveal.mp3"),
-      flag: new Audio("/sounds/flag.mp3"),
-      explosion: new Audio("/sounds/explosion.mp3"),
-      win: new Audio("/sounds/win.mp3"),
+      reveal: new Audio("/sounds/reveal.wav"),
+      flag: new Audio("/sounds/flag.wav"),
+      explosion: new Audio("/sounds/explosion.wav"),
+      win: new Audio("/sounds/win.wav"),
     });
   }, []);
 
