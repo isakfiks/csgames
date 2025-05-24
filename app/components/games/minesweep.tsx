@@ -49,6 +49,13 @@ const FACES = {
   lost: "😵",
 }
 
+interface SoundEffects {
+  reveal: HTMLAudioElement;
+  flag: HTMLAudioElement;
+  explosion: HTMLAudioElement;
+  win: HTMLAudioElement;
+}
+
 export default function MinesweeperGame({ }: { lobbyId: string; currentUser: User | null }) {
   const [grid, setGrid] = useState<Cell[][]>([])
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">("playing")
@@ -66,6 +73,9 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
+  const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null);
+  const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
+  const [sounds, setSounds] = useState<SoundEffects | null>(null);
 
   // Initialize the game
   useEffect(() => {
@@ -200,6 +210,8 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
         saveGameStats(newStats)
 
         return
+      } else {
+        sounds?.reveal.play();
       }
 
       // Reveal the clicked cell
@@ -226,7 +238,7 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
       setGrid(newGrid)
       setLastMoveTime(Date.now())
     },
-    [gameStatus, grid, firstClick, startTime, difficulty, gameStats, placeMines, saveGameStats],
+    [gameStatus, grid, firstClick, startTime, difficulty, gameStats, placeMines, saveGameStats, sounds],
   )
 
   // Handle right-click (flag)
@@ -379,6 +391,62 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
     gamesPlayed: gameStats.beginner.gamesPlayed + gameStats.intermediate.gamesPlayed + gameStats.expert.gamesPlayed,
     gamesWon: gameStats.beginner.gamesWon + gameStats.intermediate.gamesWon + gameStats.expert.gamesWon,
   }
+
+  // Double-click handler to reveal adjacent cells
+  const handleDoubleClick = useCallback((row: number, col: number) => {
+    if (gameStatus !== "playing" || grid[row][col].state !== "revealed") return;
+
+    const cell = grid[row][col];
+    if (typeof cell.value !== "number") return;
+
+    // Count flags around cell
+    const { rows, cols } = DIFFICULTY[difficulty];
+    let flagCount = 0;
+    for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
+      for (let c = Math.max(0, col - 1); c <= Math.min(cols - 1, col + 1); c++) {
+        if (grid[r][c].state === "flagged") flagCount++;
+      }
+    }
+
+    // If flags match the number, reveal adjacent cells
+    if (flagCount === cell.value) {
+      const newGrid = [...grid.map(row => [...row])];
+      for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
+        for (let c = Math.max(0, col - 1); c <= Math.min(cols - 1, col + 1); c++) {
+          if (newGrid[r][c].state === "hidden") {
+            handleCellClick(r, c);
+          }
+        }
+      }
+    }
+  }, [gameStatus, grid, difficulty, handleCellClick]);
+
+  // Start hold timer for flagging
+  const startHoldTimer = useCallback((row: number, col: number) => {
+    const timer = setTimeout(() => {
+      handleCellRightClick(new MouseEvent('contextmenu'), row, col);
+      sounds?.flag.play();
+    }, 500);
+    setHoldTimer(timer);
+  }, [handleCellRightClick, sounds]);
+
+  // Clear hold timer
+  const clearHoldTimer = useCallback(() => {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      setHoldTimer(null);
+    }
+  }, [holdTimer]);
+
+  // Initialize sound effects
+  useEffect(() => {
+    setSounds({
+      reveal: new Audio("/sounds/reveal.mp3"),
+      flag: new Audio("/sounds/flag.mp3"),
+      explosion: new Audio("/sounds/explosion.mp3"),
+      win: new Audio("/sounds/win.mp3"),
+    });
+  }, []);
 
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
@@ -540,12 +608,30 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
                     {row.map((cell, colIndex) => (
                       <button
                         key={`${rowIndex}-${colIndex}`}
-                        className={`w-8 h-8 flex items-center justify-center border border-gray-300 font-bold ${
-                          cell.state === "hidden" ? "bg-gray-300 hover:bg-gray-400" : "bg-gray-100"
-                        } ${getCellColor(cell)} transition-colors`}
+                        className={`w-8 h-8 flex items-center justify-center border border-gray-300 font-bold 
+                          ${cell.state === "hidden" ? "bg-gray-300 hover:bg-gray-400" : "bg-gray-100"}
+                          ${getCellColor(cell)} transition-colors
+                          ${selectedCell?.[0] === rowIndex && selectedCell?.[1] === colIndex ? 'ring-2 ring-blue-500' : ''}
+                          hover:ring-2 hover:ring-gray-400`}
                         onClick={() => handleCellClick(rowIndex, colIndex)}
+                        onDoubleClick={() => handleDoubleClick(rowIndex, colIndex)}
                         onContextMenu={(e) => handleCellRightClick(e, rowIndex, colIndex)}
+                        onMouseDown={() => startHoldTimer(rowIndex, colIndex)}
+                        onMouseUp={clearHoldTimer}
+                        onMouseLeave={clearHoldTimer}
+                        onTouchStart={() => startHoldTimer(rowIndex, colIndex)}
+                        onTouchEnd={clearHoldTimer}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            handleCellClick(rowIndex, colIndex);
+                          } else if (e.key === 'f') {
+                            handleCellRightClick(new MouseEvent('contextmenu'), rowIndex, colIndex);
+                          }
+                        }}
                         disabled={gameStatus !== "playing"}
+                        tabIndex={0}
+                        aria-label={`Cell at row ${rowIndex + 1}, column ${colIndex + 1}, ${cell.state === 'revealed' ? 
+                          `value ${cell.value}` : cell.state}`}
                       >
                         {getCellContent(cell)}
                       </button>
