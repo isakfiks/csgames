@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { FaArrowLeft, FaRedo, FaSync, FaChartBar } from "react-icons/fa"
+import { FaArrowLeft, FaRedo, FaSync, FaChartBar, FaQuestionCircle } from "react-icons/fa"
 import type { User } from "@supabase/supabase-js"
 
 // Basic types for our Minesweeper game
@@ -76,7 +76,8 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null);
   const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
   const [sounds, setSounds] = useState<SoundEffects | null>(null);
-
+  const [showTutorial, setShowTutorial] = useState(false);
+  
   // Initialize the game
   useEffect(() => {
     initializeGame()
@@ -448,6 +449,20 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
     });
   }, []);
 
+  // Check if it's first time playing
+  useEffect(() => {
+    const hasPlayedBefore = localStorage.getItem("minesweeperHasPlayed");
+    if (!hasPlayedBefore) {
+      setShowTutorial(true);
+      localStorage.setItem("minesweeperHasPlayed", "true");
+    }
+  }, []);
+
+  // Add tutorial toggle
+  const toggleTutorial = useCallback(() => {
+    setShowTutorial(prev => !prev);
+  }, []);
+
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-4xl mx-auto mb-4 md:mb-8">
@@ -468,6 +483,13 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2 md:mb-0">Minesweeper</h2>
 
           <div className="flex items-center space-x-4">
+            <button
+              onClick={toggleTutorial}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+              aria-label="Show tutorial"
+            >
+              <FaQuestionCircle className="text-black" />
+            </button>
             <button
               onClick={toggleStats}
               className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
@@ -590,6 +612,34 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
             >
               Reset Stats
             </button>
+          </div>
+        )}
+
+        {showTutorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+              <h3 className="text-xl font-bold mb-4">How to Play Minesweeper</h3>
+              <div className="space-y-3">
+                <p>🖱️ <strong>Left Click:</strong> Reveal a cell</p>
+                <p>🚩 <strong>Right Click:</strong> Place/Remove a flag</p>
+                <p>⌛ <strong>Long Press:</strong> Place a flag (mobile)</p>
+                <p>👆 <strong>Double Click:</strong> Reveal adjacent cells when the correct number of flags are placed</p>
+                <div className="mt-4">
+                  <p className="mb-2"><strong>Numbers indicate:</strong></p>
+                  <p>The number of mines in the 8 surrounding cells</p>
+                </div>
+                <div className="mt-4">
+                  <p className="mb-2"><strong>Goal:</strong></p>
+                  <p>Reveal all cells without mines and flag all mines to win!</p>
+                </div>
+              </div>
+              <button
+                onClick={toggleTutorial}
+                className="mt-6 bg-black text-white px-4 py-2 rounded-lg w-full"
+              >
+                Got it!
+              </button>
+            </div>
           </div>
         )}
 
