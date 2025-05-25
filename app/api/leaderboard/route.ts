@@ -34,23 +34,12 @@ export async function GET(request: NextRequest) {
       console.log(`Using cached data for ${timeframe}. Refresh count: ${cacheEntry.refreshCount}`)
 
       return NextResponse.json(cacheEntry.data)
-    }
-
-    // If we're here, we need to fetch fresh data
+    }    // If we're here, we need to fetch fresh data
     console.log(`Fetching fresh data for ${timeframe}`)
     const supabase = createRouteHandlerClient({ cookies })
-
-    let dateFilter = ""
-    if (timeframe === "week") {
-      dateFilter = "AND gw.created_at > now() - interval '7 days'"
-    } else if (timeframe === "month") {
-      dateFilter = "AND gw.created_at > now() - interval '30 days'"
-    }
-
-    // Get the leaderboard data
-    const { data, error } = await supabase.rpc("get_leaderboard", {
-      time_filter: dateFilter,
-    })
+    let { data, error } = await supabase.rpc("get_leaderboard", {
+      time_filter: timeframe
+    });
 
     if (error) {
       console.error("Error fetching leaderboard:", error)
