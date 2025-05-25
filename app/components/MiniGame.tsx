@@ -27,9 +27,11 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
   const [comboText, setComboText] = useState('');
   const [comboPosition, setComboPosition] = useState({ x: 0, y: 0 });
   const [highScore, setHighScore] = useState(0);
+  const [clickCooldown, setClickCooldown] = useState(false);
   
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const particleIdRef = useRef(0);
+  const moveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Load high score from localStorage
   useEffect(() => {
@@ -124,7 +126,16 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
   };
   
   const handleTargetClick = () => {
-    if (gameActive) {
+    if (gameActive && !clickCooldown) {
+      // Set cooldown to prevent rapid clicks
+      setClickCooldown(true);
+      
+      // Clear any pending move timeout
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current);
+        moveTimeoutRef.current = null;
+      }
+      
       // Calculate score based on target size
       const points = Math.max(1, Math.floor(40 / targetSize));
       
@@ -161,8 +172,16 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
       // Increase target size on hit but no larger than 40px
       setTargetSize(prev => Math.min(40, prev + 2));
       
-      // Move the target immediately after click
-      moveTarget();
+      // Move the target after a short delay
+      moveTimeoutRef.current = setTimeout(() => {
+        moveTarget();
+        moveTimeoutRef.current = null;
+      }, 100);
+      
+      // Reset cooldown after a short delay
+      setTimeout(() => {
+        setClickCooldown(false);
+      }, 150);
     }
   };
   
@@ -179,6 +198,13 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
     setTargetSize(40);
     setCombo(0);
     setParticles([]);
+    setClickCooldown(false);
+    
+    // Clear any pending move timeout
+    if (moveTimeoutRef.current) {
+      clearTimeout(moveTimeoutRef.current);
+      moveTimeoutRef.current = null;
+    }
   };
   
   useEffect(() => {
@@ -256,7 +282,7 @@ const LobbyMiniGame: React.FC<MiniGameProps> = ({ onClose }) => {
         
         {gameActive ? (
           <button
-            className="absolute rounded-full focus:outline-none transition-all duration-200 hover:scale-110 shadow-lg"
+            className={`absolute rounded-full focus:outline-none transition-all duration-200 hover:scale-110 shadow-lg ${clickCooldown ? 'pointer-events-none opacity-80' : ''}`}
             style={{ 
               left: `${targetPosition.x}px`, 
               top: `${targetPosition.y}px`,

@@ -41,14 +41,6 @@ const currentGames = [
     singlePlayer: false,
   },
   {
-    id: 1,
-    title: "Chess",
-    description: "Classic strategy board game for two players.",
-    image: "/placeholder.svg?height=200&width=300",
-    players: "2 players",
-    singlePlayer: false,
-  },
-  {
     id: 2,
     title: "Tic Tac Toe",
     description: "Simple game of X's and O's on a 3x3 grid.",
