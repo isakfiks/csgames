@@ -369,13 +369,13 @@ export default function ExplorePage() {
   if (isLoading) {
     return (
       <motion.div
-        className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]"
+        className="bg-white min-h-screen p-4 sm:p-6 md:p-8 font-[family-name:var(--font-geist-sans)]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="flex justify-between items-center">
+        <div className="max-w-6xl mx-auto mb-4 sm:mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
             <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
             <div className="h-8 w-40 bg-gray-200 rounded animate-pulse"></div>
             <div className="flex space-x-2">
@@ -386,8 +386,8 @@ export default function ExplorePage() {
         </div>
         
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
+          <div className="mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2 sm:gap-0">
               <div className="h-10 w-48 bg-gray-200 rounded animate-pulse"></div>
               <div className="h-6 w-24 bg-gray-200 rounded animate-pulse"></div>
             </div>
@@ -395,9 +395,9 @@ export default function ExplorePage() {
           </div>
           
           {/* Skeleton for games grid */}
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <div className="h-8 w-40 bg-gray-200 rounded mb-4 animate-pulse"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="border-2 border-gray-200 rounded-lg overflow-hidden">
                   <div className="h-48 bg-gray-200 animate-pulse"></div>
@@ -418,7 +418,7 @@ export default function ExplorePage() {
 
   return (
     <motion.div
-      className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]"
+      className="bg-white min-h-screen p-4 sm:p-6 md:p-8 font-[family-name:var(--font-geist-sans)]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -434,12 +434,12 @@ export default function ExplorePage() {
       />
 
       <motion.header
-        className="max-w-6xl mx-auto mb-8"
+        className="max-w-6xl mx-auto mb-6 sm:mb-8"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
       >
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
           <Link href="/" className="flex items-center text-black">
             <motion.div className="flex" whileHover={{ x: -3 }} whileTap={{ scale: 0.95 }}>
               <FaArrowLeft className="mr-2" />
@@ -447,7 +447,7 @@ export default function ExplorePage() {
             </motion.div>
           </Link>
           <motion.div
-            className="flex"
+            className="flex order-first sm:order-none mb-2 sm:mb-0"
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
@@ -487,13 +487,13 @@ export default function ExplorePage() {
         transition={{ delay: 0.2 }}
       >
         <motion.div
-          className="mb-8"
+          className="mb-6 sm:mb-8"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
         >
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-3xl font-bold text-black">Explore Games</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2 sm:gap-0">
+            <h2 className="text-2xl sm:text-3xl font-bold text-black">Explore Games</h2>
             {userProfile?.username && (
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Link href="/settings" className="text-blue-600 hover:underline">
@@ -511,7 +511,7 @@ export default function ExplorePage() {
             <motion.input
               type="text"
               placeholder="Search games..."
-              className="w-full p-3 border-2 border-black rounded-lg"
+              className="w-full p-2 sm:p-3 border-2 border-black rounded-lg text-base sm:text-lg"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               whileFocus={{ boxShadow: "0 0 0 3px rgba(0, 0, 0, 0.1)" }}
@@ -523,14 +523,14 @@ export default function ExplorePage() {
         {/* Active lobbies section */}
         {activeLobbies.length > 0 && (
           <motion.div
-            className="mb-12"
+            className="mb-8 sm:mb-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
           >
-            <h3 className="text-2xl font-bold text-black mb-4">Active Lobbies</h3>
+            <h3 className="text-xl sm:text-2xl font-bold text-black mb-3 sm:mb-4">Active Lobbies</h3>
             <motion.div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ staggerChildren: 0.1 }}
@@ -577,9 +577,9 @@ export default function ExplorePage() {
           </motion.div>
         )}
 
-        <h3 className="text-2xl font-bold text-black mb-4">All Games</h3>
+        <h3 className="text-xl sm:text-2xl font-bold text-black mb-3 sm:mb-4">All Games</h3>
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ staggerChildren: 0.1 }}
@@ -601,15 +601,17 @@ export default function ExplorePage() {
                 boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
               }}
             >
-              <img src={game.image || "/placeholder.svg"} alt={game.title} className="w-full h-48 object-cover" />
-              <div className="p-4 flex-grow flex flex-col">
-                <h3 className="text-xl font-bold text-black">{game.title}</h3>
-                <p className="text-gray-700 mb-2 min-h-[40px]">{game.description}</p>
-                <p className="text-sm text-gray-500 mb-4">{game.players}</p>
+              <div className="relative w-full pt-[56.25%]">
+                <img src={game.image || "/placeholder.svg"} alt={game.title} className="absolute top-0 left-0 w-full h-full object-cover" />
+              </div>
+              <div className="p-3 sm:p-4 flex-grow flex flex-col">
+                <h3 className="text-lg sm:text-xl font-bold text-black">{game.title}</h3>
+                <p className="text-sm sm:text-base text-gray-700 mb-2 min-h-[40px]">{game.description}</p>
+                <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">{game.players}</p>
                 <div className="mt-auto">
                   <motion.button
                     onClick={() => createLobby(game.id)}
-                    className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                    className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg text-sm sm:text-base"
                     whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
                     whileTap={{ scale: 0.98 }}
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
