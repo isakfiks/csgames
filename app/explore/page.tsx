@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { FaArrowLeft, FaPlus, FaTrophy, FaHandshake } from "react-icons/fa"
+import { FaArrowLeft, FaPlus, FaTrophy, FaHandshake, FaLightbulb } from "react-icons/fa"
 import { createClientComponentClient, type User } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
+import SuggestionModal from "@/comps/SuggestionModal"
 import { motion } from "framer-motion"
 
 type UserProfile = {
@@ -69,6 +70,7 @@ const currentGames = [
 export default function ExplorePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [showUsernameModal, setShowUsernameModal] = useState(false)
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -433,6 +435,13 @@ export default function ExplorePage() {
         onUsernameSet={handleUsernameSet}
       />
 
+      <SuggestionModal
+        isOpen={showSuggestionModal}
+        onClose={() => setShowSuggestionModal(false)}
+        username={userProfile?.username}
+        userId={user?.id}
+      />
+
       <motion.header
         className="max-w-6xl mx-auto mb-6 sm:mb-8"
         initial={{ y: -20, opacity: 0 }}
@@ -479,6 +488,21 @@ export default function ExplorePage() {
           </div>
         </div>
       </motion.header>
+
+      <motion.div 
+        className="max-w-6xl mx-auto mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <button
+          onClick={() => setShowSuggestionModal(true)}
+          className="text-black w-full bg-gradient-to-r from-purple-100 to-indigo-100 border-2 border-black p-4 rounded-lg flex items-center justify-center gap-2 hover:from-purple-200 hover:to-indigo-200 transition-all"
+        >
+          <FaLightbulb className="text-yellow-500" />
+          <span>Have a game idea or suggestion? Share it with us!</span>
+        </button>
+      </motion.div>
 
       <motion.main
         className="text-black max-w-6xl mx-auto"
