@@ -587,7 +587,7 @@ export default function ExplorePage() {
           {filteredGames.map((game, index) => (
             <motion.div
               key={game.id}
-              className="border-2 border-black rounded-lg overflow-hidden"
+              className="border-2 border-black rounded-lg overflow-hidden flex flex-col"
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{
@@ -602,20 +602,22 @@ export default function ExplorePage() {
               }}
             >
               <img src={game.image || "/placeholder.svg"} alt={game.title} className="w-full h-48 object-cover" />
-              <div className="p-4">
+              <div className="p-4 flex-grow flex flex-col">
                 <h3 className="text-xl font-bold text-black">{game.title}</h3>
-                <p className="text-gray-700 mb-2">{game.description}</p>
+                <p className="text-gray-700 mb-2 min-h-[40px]">{game.description}</p>
                 <p className="text-sm text-gray-500 mb-4">{game.players}</p>
-                <motion.button
-                  onClick={() => createLobby(game.id)}
-                  className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
-                  whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                >
-                  <FaPlus className="mr-2" />
-                  Create Lobby
-                </motion.button>
+                <div className="mt-auto">
+                  <motion.button
+                    onClick={() => createLobby(game.id)}
+                    className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                    whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  >
+                    <FaPlus className="mr-2" />
+                    Create Lobby
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           ))}
