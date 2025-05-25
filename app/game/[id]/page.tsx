@@ -127,7 +127,7 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
 
     try {
       // Make the move using a server function
-      const { error } = await supabase.rpc("make_tic_tac_toe_move", {
+      const { error } = await supabase.rpc("make_ai_tic_tac_toe_move", {
         game_state_id: gameState.id,
         row_index: row,
         col_index: col,
