@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle, FaGamepad } from "react-icons/fa"
+import { FaInfoCircle, FaCompass, FaDiscord, FaGoogle, FaGamepad, FaHandshake } from "react-icons/fa"
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
@@ -360,6 +360,21 @@ export default function Home() {
                 </Link>
               </motion.div>
 
+              <motion.div variants={itemVariants}>
+                <Link href="/join" className="w-full block">
+                  <motion.button
+                    className="w-full flex items-center justify-center bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-3 rounded-lg shadow-sm"
+                    variants={buttonVariants}
+                    whileHover="hover"
+                    whileTap="tap"
+                    transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                  >
+                    <FaHandshake className="mr-2" />
+                    Join a Game
+                  </motion.button>
+                </Link>
+              </motion.div>
+
               <motion.button
                 onClick={signOut}
                 disabled={isLoading}
@@ -373,6 +388,21 @@ export default function Home() {
             </motion.div>
           ) : (
             <motion.div className="w-full space-y-4" variants={containerVariants}>
+              <motion.div variants={itemVariants}>
+                <Link href="/join" className="w-full block">
+                  <motion.button
+                    className="w-full flex items-center justify-center bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-3 rounded-lg shadow-sm mb-4"
+                    variants={buttonVariants}
+                    whileHover="hover"
+                    whileTap="tap"
+                    transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                  >
+                    <FaHandshake className="mr-2" />
+                    Join a Game
+                  </motion.button>
+                </Link>
+              </motion.div>
+
               <motion.button
                 onClick={signInWithDiscord}
                 disabled={isLoading}
