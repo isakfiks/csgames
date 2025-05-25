@@ -24,69 +24,82 @@ interface TicTacToeAIOpponentProps {
 export default function TicTacToeAIOpponent({ gameState, onMove }: TicTacToeAIOpponentProps) {
   const [isAIThinking, setIsAIThinking] = useState(false)
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isMountedRef = useRef(true) // To avoid setting state after unmount
 
-  // Make AI move when it's the AI's turn
   useEffect(() => {
-    // Clean up any existing timeout
+    return () => {
+      // Cleanup on unmount
+      isMountedRef.current = false
+      if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     if (aiTimeoutRef.current) {
       clearTimeout(aiTimeoutRef.current)
     }
 
     async function performAIMove() {
-      if (!gameState || gameState.status !== "playing") {
-        return
-      }
+      // Only try if game is playing, AI opponent enabled and it's AI's turn
+      if (!gameState || gameState.status !== "playing") return
+      if (gameState.current_player !== gameState.player2) return
+      if (!gameState.ai_opponent) return
 
-      // Check if it's AI's turn (player2 is the AI)
-      if (gameState.current_player === gameState.player2 && gameState.ai_opponent) {
-        // Set AI thinking state
-        setIsAIThinking(true)
+      setIsAIThinking(true)
+      const thinkingTime = Math.random() * 1000 + 500
 
-        const thinkingTime = Math.random() * 1000 + 500 // Purely for the visuals of it (thinking time those who know)
-
-        aiTimeoutRef.current = setTimeout(async () => {
-          try {
-            // Convert the board format if needed
-            const board = gameState.board.map((row) => row.map((cell) => cell))
-
-            // Get the AI move
-            const aiPlayer = gameState.player2
-            const humanPlayer = gameState.player1
-            const move = makeAIMove(board, aiPlayer, humanPlayer)
-
-            if (!move) {
-              console.log("AI couldn't find a move")
-              setIsAIThinking(false)
-              return
-            }
-
-            const [row, col] = move
-            console.log(`AI making move at row ${row}, column ${col}`)
-
-            // Execute the move
-            await onMove(row, col)
-          } catch (err) {
-            console.error("Error in AI move:", err)
-          } finally {
-            setIsAIThinking(false)
+      aiTimeoutRef.current = setTimeout(async () => {
+        try {
+          // Double-check current_player hasn't changed (race condition check)
+          if (gameState.current_player !== gameState.player2) {
+            console.log("AI move aborted: not AI's turn anymore")
+            if (isMountedRef.current) setIsAIThinking(false)
+            return
           }
-        }, thinkingTime)
-      }
+
+          // Prepare board and get AI move
+          const board = gameState.board.map(row => row.map(cell => cell))
+          const move = makeAIMove(board, gameState.player2, gameState.player1)
+
+          if (!move) {
+            console.log("AI couldn't find a move")
+            if (isMountedRef.current) setIsAIThinking(false)
+            return
+          }
+
+          const [row, col] = move
+          console.log(`AI making move at row ${row}, column ${col}`)
+
+          // Await onMove call which updates game state on backend & frontend
+          await onMove(row, col)
+        } catch (err: any) {
+          // Handle error specifically for "Not your turn"
+          if (err?.code === "P0001" && err.message === "Not your turn") {
+            console.warn("AI tried to move but it wasn't its turn yet.")
+          } else {
+            console.error("Error in AI move:", err)
+          }
+        } finally {
+          if (isMountedRef.current) setIsAIThinking(false)
+        }
+      }, thinkingTime)
     }
 
     performAIMove()
 
-    // Clean up on unmount
+    // Cleanup AI timeout on dependencies change
     return () => {
-      if (aiTimeoutRef.current) {
-        clearTimeout(aiTimeoutRef.current)
-      }
+      if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current)
     }
   }, [gameState, onMove])
 
   return (
     <div className="ai-status">
-      {isAIThinking && <div className="text-sm text-gray-600 animate-pulse">AI is thinking...</div>}
+      {isAIThinking && (
+        <div className="text-sm text-gray-600 animate-pulse">
+          AI is thinking...
+        </div>
+      )}
     </div>
   )
 }
