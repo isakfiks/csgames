@@ -422,16 +422,16 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   // If showing AI option, render that instead of the regular lobby
   if (showAIOption && game?.title === "Tic Tac Toe" && currentUser) {
     return (
-      <div className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]">
-        <header className="max-w-4xl mx-auto mb-8">
+      <div className="bg-white min-h-screen p-4 sm:p-8 font-[family-name:var(--font-geist-sans)]">
+        <header className="max-w-4xl mx-auto mb-6 sm:mb-8">
           <div className="flex justify-between items-center">
-            <Link href="/explore" className="flex items-center text-black">
+            <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
               <FaArrowLeft className="mr-2" />
               <span>Back to Games</span>
             </Link>
             <div className="flex">
-              <h1 className="text-2xl font-bold text-black">CSGames</h1>
-              <span className="text-black text-2xl">.dev</span>
+              <h1 className="text-xl sm:text-2xl font-bold text-black">CSGames</h1>
+              <span className="text-black text-xl sm:text-2xl">.dev</span>
             </div>
           </div>
         </header>
@@ -508,24 +508,24 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   }
 
   return (
-    <div className="bg-white min-h-screen p-8 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-4xl mx-auto mb-8">
+    <div className="bg-white min-h-screen p-4 sm:p-8 font-[family-name:var(--font-geist-sans)]">
+      <header className="max-w-4xl mx-auto mb-6 sm:mb-8">
         <div className="flex justify-between items-center">
-          <Link href="/explore" className="flex items-center text-black">
+          <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
             <FaArrowLeft className="mr-2" />
             <span>Back to Games</span>
           </Link>
           <div className="flex">
-            <h1 className="text-2xl font-bold text-black">CSGames</h1>
-            <span className="text-black text-2xl">.dev</span>
+            <h1 className="text-xl sm:text-2xl font-bold text-black">CSGames</h1>
+            <span className="text-black text-xl sm:text-2xl">.dev</span>
           </div>
         </div>
       </header>
 
       <main className="text-black max-w-4xl mx-auto">
-        <div className="border-2 border-black rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-3xl font-bold text-black">{game?.title || "Connect Four"} Lobby</h2>
+        <div className="border-2 border-black rounded-lg p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+            <h2 className="text-2xl sm:text-3xl font-bold text-black">{game?.title || "Connect Four"} Lobby</h2>
 
             <div className="flex space-x-2">
               <button
@@ -550,99 +550,94 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
           {/* Mini Game Section */}
           {showMiniGame && (
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               <LobbyMiniGame onClose={() => setShowMiniGame(false)} />
             </div>
           )}
 
-          <div className="mb-6">
-            <p className="text-black mb-2">
-              <strong>Lobby ID:</strong> {resolvedParams.id}
-            </p>
-            <p className="text-black mb-2">
-              <strong>Status:</strong> {gameState?.status || "Waiting for players"}
-            </p>
-            <div className="mb-6">
-              <p className="text-black mb-2">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col gap-2 text-sm sm:text-base">
+              <p className="text-black">
+                <strong>Lobby ID:</strong> {resolvedParams.id}
+              </p>
+              <p className="text-black">
+                <strong>Status:</strong> {gameState?.status || "Waiting for players"}
+              </p>
+              <p className="text-black">
                 <strong>Created by:</strong> {getPlayerName(gameState?.player1)}
               </p>
-
-              {isCreator && (
-                <div className="mt-4 p-4 border-2 border-black rounded-lg bg-gray-50">
-                  <h3 className="text-lg font-bold mb-2">Invitation Code</h3>
-                  <p className="text-sm mb-3">Generate a short code that others can use to join this lobby.</p>
-                  <GenerateCodeButton lobbyId={resolvedParams.id} />
-                </div>
-              )}
             </div>
-            <p className="text-black">
-              <strong>Created by:</strong> {getPlayerName(gameState?.player1)}
-            </p>
-          </div>
 
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-black mb-4">Players</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-red-500 opacity-20"></div>
-                <p className="font-bold mb-2 flex items-center">
-                  Player 1{" "}
-                  <span className="ml-2 inline-block w-4 h-4 rounded-full bg-red-500"></span>
-                </p>
-                <p className="relative z-10">{getPlayerName(gameState?.player1)}</p>
-                {gameState?.player1 === currentUser?.id && (
-                  <div className="flex items-center mt-2 text-xs text-gray-600">
-                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                    <p>That&apos;s you!</p>
-                  </div>
-                )}
+            {isCreator && (
+              <div className="mt-4 p-3 sm:p-4 border-2 border-black rounded-lg bg-gray-50">
+                <h3 className="text-base sm:text-lg font-bold mb-2">Invitation Code</h3>
+                <p className="text-xs sm:text-sm mb-3">Generate a short code that others can use to join this lobby.</p>
+                <GenerateCodeButton lobbyId={resolvedParams.id} />
               </div>
+            )}
 
-              <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-yellow-500 opacity-20"></div>
-                <p className="font-bold mb-2 flex items-center">
-                  Player 2
-                  <span className="ml-2 inline-block w-4 h-4 rounded-full bg-yellow-500"></span>
-                </p>
-                <p className="relative z-10">
-                  {gameState?.ai_opponent ? (
-                    <span className="flex items-center">
-                      <svg
-                        className="w-5 h-5 mr-1"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
-                        <circle cx="9" cy="10" r="2"></circle>
-                        <circle cx="15" cy="10" r="2"></circle>
-                        <path d="M9 16h6"></path>
-                      </svg>
-                      AI Opponent
-                    </span>
-                  ) : (
-                    getPlayerName(gameState?.player2)
+            <div className="mt-6">
+              <h3 className="text-lg sm:text-xl font-bold text-black mb-4">Players</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-red-500 opacity-20"></div>
+                  <p className="font-bold mb-2 flex items-center">
+                    Player 1{" "}
+                    <span className="ml-2 inline-block w-4 h-4 rounded-full bg-red-500"></span>
+                  </p>
+                  <p className="relative z-10">{getPlayerName(gameState?.player1)}</p>
+                  {gameState?.player1 === currentUser?.id && (
+                    <div className="flex items-center mt-2 text-xs text-gray-600">
+                      <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                      <p>That&apos;s you!</p>
+                    </div>
                   )}
-                </p>
-                {gameState?.player2 === currentUser?.id && (
-                  <div className="flex items-center mt-2 text-xs text-gray-600">
-                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                    <p>That&apos;s you!</p>
-                  </div>
-                )}
+                </div>
+
+                <div className="border-2 border-black rounded-lg p-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="absolute -bottom-2 -left-2 w-12 h-12 rounded-full bg-yellow-500 opacity-20"></div>
+                  <p className="font-bold mb-2 flex items-center">
+                    Player 2
+                    <span className="ml-2 inline-block w-4 h-4 rounded-full bg-yellow-500"></span>
+                  </p>
+                  <p className="relative z-10">
+                    {gameState?.ai_opponent ? (
+                      <span className="flex items-center">
+                        <svg
+                          className="w-5 h-5 mr-1"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                          <circle cx="9" cy="10" r="2"></circle>
+                          <circle cx="15" cy="10" r="2"></circle>
+                          <path d="M9 16h6"></path>
+                        </svg>
+                        AI Opponent
+                      </span>
+                    ) : (
+                      getPlayerName(gameState?.player2)
+                    )}
+                  </p>
+                  {gameState?.player2 === currentUser?.id && (
+                    <div className="flex items-center mt-2 text-xs text-gray-600">
+                      <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                      <p>That&apos;s you!</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-lg font-bold mb-3">Game Status</h3>
+            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+              <h3 className="text-base sm:text-lg font-bold mb-3">Game Status</h3>
               <div className="flex items-center mb-4">
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
@@ -697,28 +692,27 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex-grow">
-              {!isInGame && !canJoin && !isCreator && gameState?.status !== "waiting" && (
-                <div className="p-3 bg-gray-100 rounded-lg border border-gray-200">
-                  <p className="text-gray-600 text-sm">This game is already in progress.</p>
-                </div>
-              )}
-            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex-grow w-full sm:w-auto">
+                {!isInGame && !canJoin && !isCreator && gameState?.status !== "waiting" && (
+                  <div className="p-3 bg-gray-100 rounded-lg border border-gray-200">
+                    <p className="text-gray-600 text-sm">This game is already in progress.</p>
+                  </div>
+                )}
+              </div>
 
-            <div className="flex gap-3">
-              {isInGame && gameState?.status === "playing" && (
-                <Link href={`/game/${resolvedParams.id}`}>
-                  <button className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg flex items-center hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md">
-                    <FaPlay className="mr-2" />
-                    Go to Game
-                  </button>
-                </Link>
-              )}
+              <div className="flex gap-3 w-full sm:w-auto">
+                {isInGame && gameState?.status === "playing" && (
+                  <Link href={`/game/${resolvedParams.id}`} className="w-full sm:w-auto">
+                    <button className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg flex items-center justify-center hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md">
+                      <FaPlay className="mr-2" />
+                      Go to Game
+                    </button>
+                  </Link>
+                )}
 
-              {canJoin && (
+                {canJoin && (
                 <button
                   onClick={() => joinGame()}
                   disabled={joining}
@@ -749,6 +743,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                   )}
                 </button>
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -756,3 +751,4 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     </div>
   );
 }
+
