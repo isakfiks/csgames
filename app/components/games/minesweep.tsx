@@ -470,7 +470,7 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   // Start hold timer for flagging
   const startHoldTimer = useCallback((row: number, col: number) => {
     const timer = setTimeout(() => {
-      handleCellRightClick(new MouseEvent('contextmenu'), row, col);
+      handleCellRightClick({ preventDefault: () => {} } as React.MouseEvent, row, col);
       sounds?.flag.play();
     }, 500);
     setHoldTimer(timer);
@@ -790,7 +790,7 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
                           if (e.key === ' ' || e.key === 'Enter') {
                             handleCellClick(rowIndex, colIndex);
                           } else if (e.key === 'f') {
-                            handleCellRightClick(new MouseEvent('contextmenu'), rowIndex, colIndex);
+                            handleCellRightClick(new MouseEvent('contextmenu') as unknown as React.MouseEvent, rowIndex, colIndex);
                           }
                         }}
                         disabled={gameStatus !== "playing"}
