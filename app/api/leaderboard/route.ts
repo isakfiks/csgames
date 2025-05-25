@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }    // If we're here, we need to fetch fresh data
     console.log(`Fetching fresh data for ${timeframe}`)
     const supabase = createRouteHandlerClient({ cookies })
-    let { data, error } = await supabase.rpc("get_leaderboard", {
+    const { data, error } = await supabase.rpc("get_leaderboard", {
       time_filter: timeframe
     });
 

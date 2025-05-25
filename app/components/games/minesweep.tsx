@@ -115,7 +115,7 @@ export default function MinesweeperGame({ }: { lobbyId: string; currentUser: Use
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
-  const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null);
+  const [selectedCell ] = useState<[number, number] | null>(null);
   const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
   const [sounds, setSounds] = useState<SoundEffects | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);

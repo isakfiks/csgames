@@ -72,12 +72,14 @@ export default function TicTacToeAIOpponent({ gameState, onMove }: TicTacToeAIOp
 
           // Await onMove call which updates game state on backend & frontend
           await onMove(row, col)
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Handle error specifically for "Not your turn"
-          if (err?.code === "P0001" && err.message === "Not your turn") {
+          if (err instanceof Error && (err as any).code === "P0001" && err.message === "Not your turn") {
             console.warn("AI tried to move but it wasn't its turn yet.")
-          } else {
+          } else if (err instanceof Error) {
             console.error("Error in AI move:", err)
+          } else {
+            console.error("Unexpected error in AI move:", err)
           }
         } finally {
           if (isMountedRef.current) setIsAIThinking(false)

@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('Error in suggestion API:', error);
     return NextResponse.json({ error: 'Failed to send suggestion' }, { status: 500 })
   }
 }
