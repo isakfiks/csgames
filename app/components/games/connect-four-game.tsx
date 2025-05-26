@@ -17,6 +17,9 @@ interface GameState {
   player2: string
   current_player: string
   created_at?: string
+  gravity_flipped: boolean
+  player1_used_flip: boolean
+  player2_used_flip: boolean
 }
 
 interface Profile {
@@ -228,6 +231,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
   const [invalidMoveColumn, setInvalidMoveColumn] = useState<number | null>(null)
   const [winningCells, setWinningCells] = useState<Array<[number, number]>>([])
   const [gameStartAnimation, setGameStartAnimation] = useState(true)
+  const [isFlipping, setIsFlipping] = useState(false)
 
   const boardRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -598,6 +602,41 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
     }
   }
 
+  async function handleGravityFlip() {
+    if (!gameState || !currentUser) return;
+    
+    // Check if player has already used their flip
+    const hasUsedFlip = gameState.player1 === currentUser.id 
+      ? gameState.player1_used_flip 
+      : gameState.player2_used_flip;
+      
+    if (hasUsedFlip) return;
+    
+    try {
+      setIsFlipping(true);
+      
+      const { error } = await supabase
+        .from("game_states")
+        .update({
+          gravity_flipped: !gameState.gravity_flipped,
+          ...(gameState.player1 === currentUser.id 
+            ? { player1_used_flip: true }
+            : { player2_used_flip: true })
+        })
+        .eq("id", gameState.id);
+
+      if (error) throw error;
+      
+      // Wait for flip animation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await fetchLatestGameState();
+    } catch (err) {
+      console.error("Error flipping gravity:", err);
+    } finally {
+      setIsFlipping(false);
+    }
+  }
+
   function getPlayerName(playerId: string) {
     if (!playerId) return "Unknown"
 
@@ -654,12 +693,42 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           <div className="flex items-center space-x-4">
             <button
               onClick={handleManualRefresh}
-              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 ${isRefreshing ? "animate-spin" : ""}`}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 ${
+                isRefreshing ? "animate-spin" : ""
+              }`}
               aria-label="Refresh game"
               disabled={isRefreshing}
             >
               <FaSync className="text-black" />
             </button>
+
+            {isMyTurn() && !gameOver && (
+              <button
+                onClick={handleGravityFlip}
+                disabled={
+                  (gameState.player1 === currentUser?.id && gameState.player1_used_flip) ||
+                  (gameState.player2 === currentUser?.id && gameState.player2_used_flip) ||
+                  isFlipping
+                }
+                className={`p-2 rounded-full transition-all duration-300 ${
+                  isFlipping ? "animate-spin bg-yellow-400" :
+                  ((gameState.player1 === currentUser?.id && gameState.player1_used_flip) ||
+                  (gameState.player2 === currentUser?.id && gameState.player2_used_flip))
+                    ? "bg-gray-200 cursor-not-allowed"
+                    : "bg-yellow-400 hover:bg-yellow-500"
+                }`}
+                title={
+                  ((gameState.player1 === currentUser?.id && gameState.player1_used_flip) ||
+                  (gameState.player2 === currentUser?.id && gameState.player2_used_flip))
+                    ? "Gravity flip already used"
+                    : "Flip board gravity"
+                }
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+              </button>
+            )}
 
             <div className={`flex items-center ${isMyTurn() && !gameOver ? "animate-pulse" : ""}`}>
               <div
@@ -717,11 +786,11 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
         <div
           ref={boardRef}
-          className={`bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-500 transform ${gameStartAnimation ? "scale-95 opacity-90" : "scale-100 opacity-100"} hover:scale-[1.01]`}
-          style={{
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-          }}
-          key={`board-${lastMoveTime}`}
+          className={`bg-blue-600 p-2 md:p-4 rounded-lg mx-auto max-w-md md:max-w-lg relative transition-all duration-500 transform ${
+            gameStartAnimation ? "scale-95 opacity-90" : "scale-100 opacity-100"
+          } hover:scale-[1.01] ${isFlipping ? "animate-flip-board" : ""} ${
+            gameState.gravity_flipped ? "rotate-180" : ""
+          }`}
         >
           {isMyTurn() && hoverColumn !== null && !gameOver && (
             <div
@@ -751,12 +820,9 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                   style={{ cursor: isMyTurn() && !gameOver && !isColumnFull(colIndex) ? "pointer" : "default" }}
                 >
                   <div
-                    className={`w-[85%] h-[85%] rounded-full transition-all duration-300 ${
-                      dropAnimation && dropAnimation.col === colIndex && dropAnimation.row === rowIndex
-                        ? "animate-drop-piece"
-                        : ""
-                    } ${isWinningCell(rowIndex, colIndex) ? "animate-winner" : ""}`}
+                    className={`w-[85%] h-[85%] rounded-full transition-all duration-300`}
                     style={{
+                      transform: gameState.gravity_flipped ? "rotate(180deg)" : "",
                       backgroundColor: getPlayerColor(cell),
                       boxShadow: isWinningCell(rowIndex, colIndex) 
                         ? "0 0 10px 2px rgba(255, 255, 255, 0.7), inset 0 2px 4px 0 rgba(0, 0, 0, 0.1)" 
