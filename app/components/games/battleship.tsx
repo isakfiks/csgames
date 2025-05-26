@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FaArrowLeft, FaRedo, FaSync, FaRandom, FaCheck, FaVolumeUp, FaVolumeMute } from "react-icons/fa"
@@ -577,9 +577,9 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
           setRecentMoves(movesData)
         }
 
-        // Set up real-time subscription for state changes
+        // Enhanced real-time subscription for state changes
         gameStateSubscription = supabase
-          .channel("battleship_game_state_changes")
+          .channel(`battleship_game_${gameStateData.id}`)
           .on(
             "postgres_changes",
             {
@@ -588,43 +588,42 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               table: "battleship_game_states",
               filter: `id=eq.${gameStateData.id}`,
             },
-            (payload) => {
+            async (payload) => {
               console.log("Game state changed:", payload)
               if (!isActive) return
 
               const newState = payload.new as GameState
               setGameState(newState)
 
-              // Handle state changes
-              if (newState.status === "in_progress" && placementPhase) {
-                setPlacementPhase(false)
-                setWaitingForOpponent(newState.current_player !== currentUser.id)
-                playSound("gameStart")
-              }
-
-              // Update boards
-              if (newState.player1 === currentUser.id) {
+              // Update boards immediately when state changes
+              if (newState.player1 === currentUser?.id) {
                 setMyBoard(newState.player1_board)
+                setMyShots(newState.player1_shots)
+                setOpponentShots(newState.player2_shots)
                 if (newState.status === "finished") {
-                  setOpponentBoard(newState.player2_board) // Show full board at game end
+                  setOpponentBoard(newState.player2_board)
                 } else {
                   setOpponentBoard(createOpponentBoardView(newState.player2_board, newState.player1_shots))
                 }
-                setMyShots(newState.player1_shots)
-                setOpponentShots(newState.player2_shots)
               } else {
                 setMyBoard(newState.player2_board)
+                setMyShots(newState.player2_shots)
+                setOpponentShots(newState.player1_shots)
                 if (newState.status === "finished") {
-                  setOpponentBoard(newState.player1_board) // Show full board at game end
+                  setOpponentBoard(newState.player1_board)
                 } else {
                   setOpponentBoard(createOpponentBoardView(newState.player1_board, newState.player2_shots))
                 }
-                setMyShots(newState.player2_shots)
-                setOpponentShots(newState.player1_shots)
               }
 
               // Update waiting state
-              setWaitingForOpponent(newState.current_player !== currentUser.id)
+              setWaitingForOpponent(newState.current_player !== currentUser?.id)
+
+              // Handle game phase changes
+              if (newState.status === "in_progress" && placementPhase) {
+                setPlacementPhase(false)
+                playSound("gameStart")
+              }
 
               // Check for game over
               if (newState.status === "finished" && !gameOver) {
@@ -635,13 +634,25 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
                   playSound("gameOver")
                 }, 500)
               }
+
+              // Fetch latest moves after state change
+              const { data: latestMoves } = await supabase
+                .from("battleship_moves")
+                .select("*")
+                .eq("game_state_id", gameStateData.id)
+                .order("created_at", { ascending: false })
+                .limit(5)
+
+              if (latestMoves) {
+                setRecentMoves(latestMoves)
+              }
             },
           )
           .subscribe()
 
-        // Set up real-time subscription for moves
+        // Enhanced moves subscription
         gameMovesSubscription = supabase
-          .channel("battleship_moves_changes")
+          .channel(`battleship_moves_${gameStateData.id}`)
           .on(
             "postgres_changes",
             {
@@ -650,13 +661,11 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               table: "battleship_moves",
               filter: `game_state_id=eq.${gameStateData.id}`,
             },
-            (payload) => {
+            async (payload) => {
               console.log("New move detected:", payload)
               if (!isActive) return
 
               const newMove = payload.new as GameMove
-
-              // Update recent moves
               setRecentMoves((prev) => [newMove, ...prev.slice(0, 4)])
 
               // Show hit animation
@@ -667,11 +676,10 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               })
 
               // Play sound
-              if (newMove.is_hit) {
-                playSound("hit")
-              } else {
-                playSound("miss")
-              }
+              playSound(newMove.is_hit ? "hit" : "miss")
+
+              // Force refresh game state after move
+              await fetchLatestGameState()
 
               setTimeout(() => setHitAnimation(null), 1000)
             },
@@ -695,6 +703,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
     loadGameData()
 
+    // Cleanup subscriptions
     return () => {
       isActive = false
       if (gameStateSubscription) gameStateSubscription.unsubscribe()
@@ -840,127 +849,6 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     setOpponentShipCells(shipCells)
   }
 
-  // Polling for updates
-  const [lastUpdate, setLastUpdate] = useState<number>(Date.now())
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const gameStateRef = useRef<GameState | null>(null)
-
-  const updateGameState = useCallback((newState: GameState) => {
-    setGameState(newState)
-    gameStateRef.current = newState
-    setLastUpdate(Date.now())
-
-    if (newState.player1 === currentUser?.id) {
-      setMyBoard(newState.player1_board)
-      setOpponentBoard(createOpponentBoardView(newState.player2_board, newState.player1_shots))
-      setMyShots(newState.player1_shots)
-      setOpponentShots(newState.player2_shots)
-    } else {
-      setMyBoard(newState.player2_board)
-      setOpponentBoard(createOpponentBoardView(newState.player1_board, newState.player2_shots))
-      setMyShots(newState.player2_shots)
-      setOpponentShots(newState.player1_shots)
-    }
-
-    setWaitingForOpponent(newState.current_player !== currentUser?.id)
-    if (newState.status === "finished" && !gameOver) {
-      setGameOver(true)
-      setWinner(newState.winner)
-      setTimeout(() => {
-        setShowWinnerMessage(true)
-        playSound("gameOver")
-      }, 500)
-    }
-  }, [currentUser?.id, gameOver])
-
-  const pollForUpdates = useCallback(async () => {
-    if (!gameStateRef.current?.id) return
-
-    try {
-      const { data, error } = await supabase
-        .from("battleship_game_states")
-        .select("*")
-        .eq("id", gameStateRef.current.id)
-        .single()
-
-      if (error) throw error
-      if (data && data.last_updated !== gameStateRef.current.last_updated) {
-        updateGameState(data)
-      }
-    } catch (err) {
-      console.error("Error polling for updates:", err)
-    }
-  }, [updateGameState])
-
-  useEffect(() => {
-    pollingIntervalRef.current = setInterval(pollForUpdates, 1000)
-
-    const channel = supabase
-      .channel(`game-${gameState?.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "battleship_game_states",
-          filter: `id=eq.${gameState?.id}`,
-        },
-        (payload) => updateGameState(payload.new as GameState),
-      )
-      .subscribe()
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-      }
-      channel.unsubscribe()
-    }
-  }, [gameState?.id, pollForUpdates, updateGameState])
-
-  // Modify handleShot
-  async function handleShot(row: number, col: number) {
-    if (placementPhase || gameOver || waitingForOpponent) return
-    if (!gameState || gameState.current_player !== currentUser?.id) return
-    if (myShots[row][col] !== EMPTY) return
-
-    try {
-      setWaitingForOpponent(true)
-
-      // Optimistic updates
-      const newMyShots = [...myShots]
-      const isHit = opponentBoard[row][col] === SHIP
-      newMyShots[row][col] = isHit ? HIT : MISS
-      setMyShots(newMyShots)
-      
-      setHitAnimation({
-        row,
-        col,
-        isHit,
-      })
-      playSound(isHit ? "hit" : "miss")
-
-      const { error } = await supabase.rpc("battleship_make_move", {
-        p_game_state_id: gameState.id,
-        p_player_id: currentUser?.id,
-        p_row: row,
-        p_col: col,
-      })
-
-      if (error) {
-        console.error("Error making move:", error)
-        setMyShots(myShots)
-        setWaitingForOpponent(false)
-        return
-      }
-
-      pollForUpdates()
-      setTimeout(() => setHitAnimation(null), 1000)
-    } catch (err) {
-      console.error("Error in handleShot:", err)
-      setWaitingForOpponent(false)
-    }
-  }
-
   // Start polling for state updates
   function startPolling() {
     console.log("Starting polling for game state updates")
@@ -982,6 +870,7 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     }
   }
 
+  // Enhanced fetchLatestGameState function
   async function fetchLatestGameState() {
     try {
       if (!gameStateIdRef.current) return
@@ -997,11 +886,30 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
         return
       }
 
-      console.log("Fetched latest game state:", data)
+      // Update all relevant state
       setGameState(data)
+      
+      if (data.player1 === currentUser?.id) {
+        setMyBoard(data.player1_board)
+        setMyShots(data.player1_shots)
+        setOpponentShots(data.player2_shots)
+        if (data.status === "finished") {
+          setOpponentBoard(data.player2_board)
+        } else {
+          setOpponentBoard(createOpponentBoardView(data.player2_board, data.player1_shots))
+        }
+      } else {
+        setMyBoard(data.player2_board)
+        setMyShots(data.player2_shots)
+        setOpponentShots(data.player1_shots)
+        if (data.status === "finished") {
+          setOpponentBoard(data.player1_board)
+        } else {
+          setOpponentBoard(createOpponentBoardView(data.player1_board, data.player2_shots))
+        }
+      }
 
-      // Update game state based on fetched data
-      // This is handled by the subscription, but we'll update it here as well for redundancy
+      setWaitingForOpponent(data.current_player !== currentUser?.id)
     } catch (err) {
       console.error("Error in fetchLatestGameState:", err)
     }
@@ -1170,24 +1078,14 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
   async function handleShot(row: number, col: number) {
     if (placementPhase || gameOver || waitingForOpponent) return
     if (!gameState || gameState.current_player !== currentUser?.id) return
+
+    // Check if cell was already shot
     if (myShots[row][col] !== EMPTY) return
 
     try {
       setWaitingForOpponent(true)
 
-      // Optimistic updates
-      const newMyShots = [...myShots]
-      const isHit = opponentBoard[row][col] === SHIP
-      newMyShots[row][col] = isHit ? HIT : MISS
-      setMyShots(newMyShots)
-      
-      setHitAnimation({
-        row,
-        col,
-        isHit,
-      })
-      playSound(isHit ? "hit" : "miss")
-
+      // Make move in database
       const { error } = await supabase.rpc("battleship_make_move", {
         p_game_state_id: gameState.id,
         p_player_id: currentUser?.id,
@@ -1197,16 +1095,62 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
 
       if (error) {
         console.error("Error making move:", error)
-        setMyShots(myShots)
-        setWaitingForOpponent(false)
-        return
+        
+        // Fallback: Manual update if the RPC call fails
+        if (error.code === '42883') { // Array length function error
+          console.log("Attempting fallback method for move...");
+          
+          // Determine which player is making the move
+          const isPlayer1 = gameState.player1 === currentUser?.id;
+          
+          // Create a deep copy of current game state to modify
+          const opponentBoardField = isPlayer1 ? 'player2_board' : 'player1_board';
+          const shotsField = isPlayer1 ? 'player1_shots' : 'player2_shots';
+          const opponentBoard = gameState[opponentBoardField];
+          const newShots = JSON.parse(JSON.stringify(gameState[shotsField]));
+          
+          // Update the shots array
+          newShots[row][col] = opponentBoard[row][col] === SHIP ? HIT : MISS;
+          
+          // Record whether the shot was a hit
+          const isHit = opponentBoard[row][col] === SHIP;
+          
+          // Update the game state
+          const { error: updateError } = await supabase
+            .from("battleship_game_states")
+            .update({
+              [shotsField]: newShots,
+              current_player: isPlayer1 ? gameState.player2 : gameState.player1
+            })
+            .eq("id", gameState.id);
+            
+          // Also record the move in the moves table
+          const { error: moveError } = await supabase
+            .from("battleship_moves")
+            .insert({
+              game_state_id: gameState.id,
+              player_id: currentUser?.id,
+              row: row,
+              col: col,
+              is_hit: isHit
+            });
+            
+          if (updateError || moveError) {
+            console.error("Error with fallback update:", updateError || moveError);
+            setWaitingForOpponent(false);
+            return;
+          }
+        } else {
+          setWaitingForOpponent(false);
+          return;
+        }
       }
 
-      pollForUpdates()
-      setTimeout(() => setHitAnimation(null), 1000)
+      // Fetch updated game state
+      fetchLatestGameState();
     } catch (err) {
-      console.error("Error in handleShot:", err)
-      setWaitingForOpponent(false)
+      console.error("Error in handleShot:", err);
+      setWaitingForOpponent(false);
     }
   }
 
