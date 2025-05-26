@@ -793,17 +793,26 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
             gameState.gravity_flipped ? "rotate-180" : ""
           }`}
         >
-          {isMyTurn() && hoverColumn !== null && !gameOver && (
+          {/* Preview piece when hovering */}
+          {isMyTurn() && hoverColumn !== null && !gameOver && !isColumnFull(hoverColumn) && (
             <div
-              className="absolute top-0 w-[14.28%] h-8 flex items-center justify-center transition-all duration-200"
+              className="absolute top-0 w-[14.28%] transition-all duration-200 z-10"
               style={{
                 left: `${hoverColumn * 14.28}%`,
+                transform: `translateY(${gameState.gravity_flipped ? '0' : '-100%'})`,
               }}
             >
-              <div 
-                className={`w-[80%] h-[80%] rounded-full ${isColumnFull(hoverColumn) ? "animate-shake" : "animate-bounce-slow"}`} 
-                style={{ backgroundColor: myColor, opacity: 0.7 }}
-              ></div>
+              <div className="aspect-square p-1 md:p-2">
+                <div 
+                  className="w-full h-full rounded-full transition-transform duration-200 transform hover:scale-105"
+                  style={{ 
+                    backgroundColor: myColor,
+                    opacity: 0.8,
+                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.1)',
+                    transform: gameState.gravity_flipped ? 'rotate(180deg)' : '',
+                  }}
+                ></div>
+              </div>
             </div>
           )}
 

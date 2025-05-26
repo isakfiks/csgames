@@ -29,6 +29,14 @@ type Lobby = {
   singlePlayer?: boolean
 }
 
+type ActiveGame = {
+  gameStateId: string
+  lobbyId: string
+  gameTitle: string
+  opponent: string | null
+  yourTurn: boolean
+}
+
 const supabase = createClientComponentClient()
 
 // Currently we're just using demo games, because we don't have any actual functioning games implemented yet (keep in mind the "yet", they are being worked on as we speak)
@@ -75,6 +83,7 @@ export default function ExplorePage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([])
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>([])
 
   // Filter games based on search
   const filteredGames = currentGames.filter((game) => game.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -368,6 +377,75 @@ export default function ExplorePage() {
     }
   }
 
+  useEffect(() => {
+    async function fetchActiveGames() {
+      if (!user?.id) return
+
+      const { data, error } = await supabase
+        .from("game_states")
+        .select(`
+          id,
+          lobby_id,
+          status,
+          player1,
+          player2,
+          current_player,
+          lobbies!inner(
+            id,
+            game_id,
+            games!inner(
+              id,
+              title,
+              singlePlayer
+            )
+          )
+        `)
+        .or(`player1.eq.${user.id},player2.eq.${user.id}`)
+        .in("status", ["active", "waiting"])
+        .filter('lobbies.games.singlePlayer', 'eq', false)
+
+      if (error) {
+        console.error("Error fetching active games:", error)
+        return
+      }
+
+      // Get usernames for opponents
+      const opponentIds = data.map((game) => (game.player1 === user.id ? game.player2 : game.player1)).filter(Boolean)
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", opponentIds)
+
+      // Update the processed games mapping
+      const processedGames = data.map((game) => ({
+        gameStateId: game.id,
+        lobbyId: game.lobby_id,
+        gameTitle: game.lobbies?.games?.title || "Untitled Game",
+        opponent: profiles?.find(
+          (p) => p.id === (game.player1 === user.id ? game.player2 : game.player1)
+        )?.username || (!game.player2 ? "Waiting for opponent" : "Unknown Player"),
+        yourTurn: game.current_player === user.id,
+      }))
+
+      setActiveGames(processedGames)
+    }
+
+    if (user) {
+      fetchActiveGames()
+
+      // Set up subscription for game state changes
+      const gameStateSubscription = supabase
+        .channel("game_states_changes")
+        .on("postgres_changes", { event: "*", schema: "public", table: "game_states" }, () => fetchActiveGames())
+        .subscribe()
+
+      return () => {
+        gameStateSubscription.unsubscribe()
+      }
+    }
+  }, [user])
+
   if (isLoading) {
     return (
       <motion.div
@@ -386,7 +464,7 @@ export default function ExplorePage() {
             </div>
           </div>
         </div>
-        
+
         <div className="max-w-6xl mx-auto">
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2 sm:gap-0">
@@ -395,7 +473,7 @@ export default function ExplorePage() {
             </div>
             <div className="h-12 w-full bg-gray-200 rounded-lg animate-pulse"></div>
           </div>
-          
+
           {/* Skeleton for games grid */}
           <div className="mb-6 sm:mb-8">
             <div className="h-8 w-40 bg-gray-200 rounded mb-4 animate-pulse"></div>
@@ -489,19 +567,44 @@ export default function ExplorePage() {
         </div>
       </motion.header>
 
-      <motion.div 
+      <motion.div
         className="max-w-6xl mx-auto mb-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <button
-          onClick={() => setShowSuggestionModal(true)}
-          className="text-black w-full bg-gradient-to-r from-purple-100 to-indigo-100 border-2 border-black p-4 rounded-lg flex items-center justify-center gap-2 hover:from-purple-200 hover:to-indigo-200 transition-all"
-        >
-          <FaLightbulb className="text-yellow-500" />
-          <span>Have a game idea or suggestion? Share it with us!</span>
-        </button>
+        <div className="flex flex-col gap-4">
+          <button
+            onClick={() => setShowSuggestionModal(true)}
+            className="text-black w-full bg-gradient-to-r from-purple-100 to-indigo-100 border-2 border-black p-4 rounded-lg flex items-center justify-center gap-2 hover:from-purple-200 hover:to-indigo-200 transition-all"
+          >
+            <FaLightbulb className="text-yellow-500" />
+            <span>Have a game idea or suggestion? Share it with us!</span>
+          </button>
+
+          {activeGames.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {activeGames.map((game) => (
+                <Link
+                  key={game.gameStateId}
+                  href={`/game/${game.gameStateId}`}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                    game.yourTurn
+                      ? "border-green-500 bg-green-50 hover:bg-green-100"
+                      : "border-blue-500 bg-blue-50 hover:bg-blue-100"
+                  }`}
+                >
+                  <span className="text-black font-medium">{game.gameTitle}</span>
+                  {game.yourTurn && (
+                    <span className="text-xs px-2 py-1 bg-green-600 text-white rounded-full">
+                      Your Turn!
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </motion.div>
 
       <motion.main
@@ -626,7 +729,11 @@ export default function ExplorePage() {
               }}
             >
               <div className="relative w-full pt-[56.25%]">
-                <img src={game.image || "/placeholder.svg"} alt={game.title} className="absolute top-0 left-0 w-full h-full object-cover" />
+                <img
+                  src={game.image || "/placeholder.svg"}
+                  alt={game.title}
+                  className="absolute top-0 left-0 w-full h-full object-cover"
+                />
               </div>
               <div className="p-3 sm:p-4 flex-grow flex flex-col">
                 <h3 className="text-lg sm:text-xl font-bold text-black">{game.title}</h3>
