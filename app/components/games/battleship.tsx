@@ -875,6 +875,8 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     try {
       if (!gameStateIdRef.current) return
 
+      console.log('Fetching latest game state...')
+
       const { data, error } = await supabase
         .from("battleship_game_states")
         .select("*")
@@ -886,9 +888,12 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
         return
       }
 
+      console.log('Received updated game state:', data)
+
       // Update all relevant state
       setGameState(data)
       
+      // Update boards based on player
       if (data.player1 === currentUser?.id) {
         setMyBoard(data.player1_board)
         setMyShots(data.player1_shots)
@@ -1085,46 +1090,58 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
     try {
       setWaitingForOpponent(true)
 
+      // Log current state before making move
+      console.log('Making move:', { row, col, gameStateId: gameState.id, playerId: currentUser?.id })
+
       // Make move in database
-      const { error } = await supabase.rpc("battleship_make_move", {
+      const { data, error } = await supabase.rpc("battleship_make_move", {
         p_game_state_id: gameState.id,
         p_player_id: currentUser?.id,
         p_row: row,
         p_col: col,
       })
 
+      console.log('Move result:', { data, error }) // Add logging
+
       if (error) {
         console.error("Error making move:", error)
         
-        // Fallback: Manual update if the RPC call fails
-        if (error.code === '42883') { // Array length function error
-          console.log("Attempting fallback method for move...");
+        // Enhanced error logging for the fallback case
+        if (error.code === '42883') {
+          console.log("Using fallback move method")
+          const isPlayer1 = gameState.player1 === currentUser?.id
           
-          // Determine which player is making the move
-          const isPlayer1 = gameState.player1 === currentUser?.id;
+          // Create deep copies to avoid mutation issues
+          const newShots = JSON.parse(JSON.stringify(
+            isPlayer1 ? gameState.player1_shots : gameState.player2_shots
+          ))
+          const opponentBoard = isPlayer1 ? gameState.player2_board : gameState.player1_board
           
-          // Create a deep copy of current game state to modify
-          const opponentBoardField = isPlayer1 ? 'player2_board' : 'player1_board';
-          const shotsField = isPlayer1 ? 'player1_shots' : 'player2_shots';
-          const opponentBoard = gameState[opponentBoardField];
-          const newShots = JSON.parse(JSON.stringify(gameState[shotsField]));
-          
-          // Update the shots array
-          newShots[row][col] = opponentBoard[row][col] === SHIP ? HIT : MISS;
-          
-          // Record whether the shot was a hit
-          const isHit = opponentBoard[row][col] === SHIP;
-          
-          // Update the game state
+          const isHit = opponentBoard[row][col] === SHIP
+          newShots[row][col] = isHit ? HIT : MISS
+
+          console.log('Fallback update data:', {
+            shots: newShots,
+            nextPlayer: isPlayer1 ? gameState.player2 : gameState.player1
+          })
+
+          // Update game state
           const { error: updateError } = await supabase
             .from("battleship_game_states")
             .update({
-              [shotsField]: newShots,
-              current_player: isPlayer1 ? gameState.player2 : gameState.player1
+              [isPlayer1 ? 'player1_shots' : 'player2_shots']: newShots,
+              current_player: isPlayer1 ? gameState.player2 : gameState.player1,
+              last_updated: new Date().toISOString() // Add timestamp to force update
             })
-            .eq("id", gameState.id);
-            
-          // Also record the move in the moves table
+            .eq("id", gameState.id)
+
+          if (updateError) {
+            console.error("Fallback update error:", updateError)
+            setWaitingForOpponent(false)
+            return
+          }
+
+          // Record move
           const { error: moveError } = await supabase
             .from("battleship_moves")
             .insert({
@@ -1132,25 +1149,25 @@ export default function BattleshipGame({ lobbyId, currentUser }: BattleshipGameP
               player_id: currentUser?.id,
               row: row,
               col: col,
-              is_hit: isHit
-            });
-            
-          if (updateError || moveError) {
-            console.error("Error with fallback update:", updateError || moveError);
-            setWaitingForOpponent(false);
-            return;
-          }
-        } else {
-          setWaitingForOpponent(false);
-          return;
-        }
-      }
+              is_hit: isHit,
+              created_at: new Date().toISOString()
+            })
 
-      // Fetch updated game state
-      fetchLatestGameState();
+          if (moveError) {
+            console.error("Move recording error:", moveError)
+          }
+
+          // Force immediate state refresh
+          await fetchLatestGameState()
+        }
+      } else {
+        // If move succeeded, force refresh state
+        await fetchLatestGameState()
+      }
     } catch (err) {
-      console.error("Error in handleShot:", err);
-      setWaitingForOpponent(false);
+      console.error("Error in handleShot:", err)
+    } finally {
+      setWaitingForOpponent(false)
     }
   }
 
