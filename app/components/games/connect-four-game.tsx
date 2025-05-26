@@ -565,45 +565,42 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
   // Handle click
   async function handleColumnClick(columnIndex: number) {
-    if (!gameState || gameOver) return
+    if (!gameState || gameOver) return;
 
     // Check if it's the user's turn
     if (gameState.current_player !== currentUser?.id) {
-      return
+      return;
     }
 
     // Check if column is full
     if (isColumnFull(columnIndex)) {
-      setInvalidMoveColumn(columnIndex)
-      setTimeout(() => setInvalidMoveColumn(null), 800)
-      return
+      setInvalidMoveColumn(columnIndex);
+      setTimeout(() => setInvalidMoveColumn(null), 800);
+      return;
     }
 
     try {
-      console.log(`Making move in column ${columnIndex}`)
+      console.log(`Making move in column ${columnIndex}`);
 
-      // Actually make the move
+      // Make the move with THE EXACT column index without any adjustment
       const { error } = await supabase.rpc("make_move", {
         game_state_id: gameState.id,
-        column_index: columnIndex,
-      })
+        column_index: columnIndex
+      });
 
       if (error) {
-        console.error("Error making move:", error)
-        if (!error.message.includes("Column is full")) {
-          alert(error.message)
-        }
+        console.error("Error making move:", error);
       } else {
-        // Fetch game state after moving
-        fetchLatestGameState()
+        // Wait for move to be processed
+        await fetchLatestGameState();
       }
-    } catch (err: unknown) {
-      console.error("Error making move:", err)
+    } catch (err) {
+      console.error("Error making move:", err);
     }
   }
 
   async function handleGravityFlip() {
-    if (!gameState || !currentUser) return;
+    if (!gameState || !currentUser || !isMyTurn()) return;
     
     // Check if player has already used their flip
     const hasUsedFlip = gameState.player1 === currentUser.id 
@@ -621,7 +618,11 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
           gravity_flipped: !gameState.gravity_flipped,
           ...(gameState.player1 === currentUser.id 
             ? { player1_used_flip: true }
-            : { player2_used_flip: true })
+            : { player2_used_flip: true }),
+          // Change turns after flip
+          current_player: gameState.player1 === currentUser.id 
+            ? gameState.player2 
+            : gameState.player1
         })
         .eq("id", gameState.id);
 
@@ -814,7 +815,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                   className={`aspect-square bg-blue-700 rounded-full flex items-center justify-center relative overflow-hidden transition-transform duration-200 
                     ${isMyTurn() && !gameOver && !isColumnFull(colIndex) ? "hover:scale-105" : ""} 
                     ${invalidMoveColumn === colIndex ? "animate-shake" : ""}`}
-                  onClick={() => handleColumnClick(colIndex)}
+                  onClick={() => handleColumnClick(colIndex)} // Pass the raw colIndex without adjustments
                   onMouseEnter={() => setHoverColumn(colIndex)}
                   onMouseLeave={() => setHoverColumn(null)}
                   style={{ cursor: isMyTurn() && !gameOver && !isColumnFull(colIndex) ? "pointer" : "default" }}
