@@ -421,7 +421,7 @@ export default function ExplorePage() {
       const processedGames = data.map((game) => ({
         gameStateId: game.id,
         lobbyId: game.lobby_id,
-        gameTitle: game.lobbies?.games?.title || "Untitled Game",
+        gameTitle: game.lobbies?.[0]?.games?.[0]?.title || "Untitled Game",
         opponent: profiles?.find(
           (p) => p.id === (game.player1 === user.id ? game.player2 : game.player1)
         )?.username || (!game.player2 ? "Waiting for opponent" : "Unknown Player"),
