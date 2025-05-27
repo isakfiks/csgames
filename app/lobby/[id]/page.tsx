@@ -404,11 +404,117 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
   if (error || !lobby) {
     return (
-      <div className="bg-white min-h-screen p-8 flex flex-col items-center justify-center font-[family-name:var(--font-geist-sans)]">
-        <p className="text-black mb-4">Error: {error || "Lobby not found"}</p>
-        <Link href="/explore" className="text-black underline">
-          Return to Explore Games
-        </Link>
+      <div className="bg-white min-h-screen font-[family-name:var(--font-geist-sans)]">
+        <header className="max-w-4xl mx-auto p-8">
+          <div className="flex justify-between items-center">
+            <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
+              <FaArrowLeft className="mr-2" />
+              <span>Back to Games</span>
+            </Link>
+            <div className="flex">
+              <h1 className="text-xl sm:text-2xl font-bold text-black">CSGames</h1>
+              <span className="text-black text-xl sm:text-2xl">.dev</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-4xl mx-auto p-8">
+          <div className="text-center">
+            <div className="mb-8">
+              <svg
+                className="mx-auto h-24 w-24 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Lobby Not Found</h2>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+              {error || "We couldn't find the lobby you're looking for. It may have expired or been deleted."}
+            </p>
+
+            <div className="space-y-4">
+              <div className="text-black bg-gray-50 rounded-lg p-6 max-w-md mx-auto">
+                <h3 className="text-lg font-semibold mb-4">What you can do:</h3>
+                <ul className="text-left space-y-3">
+                  <li className="flex items-start">
+                    <svg
+                      className="h-6 w-6 text-green-500 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Check if you entered the correct lobby ID</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-6 w-6 text-green-500 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Ask your friend to send you a new invitation</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg
+                      className="h-6 w-6 text-green-500 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>Create a new game lobby</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-md mx-auto">
+                <Link
+                  href="/explore"
+                  className="w-full sm:w-auto bg-black text-white px-6 py-3 rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors duration-300"
+                >
+                  <FaGamepad className="mr-2" />
+                  Browse Games
+                </Link>
+                <Link
+                  href="/"
+                  className="w-full sm:w-auto bg-gray-100 text-gray-900 px-6 py-3 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors duration-300"
+                >
+                  <FaArrowLeft className="mr-2" />
+                  Return Home
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
