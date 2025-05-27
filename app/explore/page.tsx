@@ -37,6 +37,24 @@ type ActiveGame = {
   yourTurn: boolean
 }
 
+type GameState = {
+  id: string
+  lobby_id: string
+  status: string
+  player1: string
+  player2: string | null
+  current_player: string
+  lobbies: {
+    id: string
+    game_id: number
+    games: {
+      id: number
+      title: string
+      singlePlayer: boolean
+    }
+  }
+}
+
 const supabase = createClientComponentClient()
 
 // Currently we're just using demo games, because we don't have any actual functioning games implemented yet (keep in mind the "yet", they are being worked on as we speak)
@@ -390,10 +408,10 @@ export default function ExplorePage() {
           player1,
           player2,
           current_player,
-          lobbies!inner(
+          lobbies (
             id,
             game_id,
-            games!inner(
+            games (
               id,
               title,
               singlePlayer
@@ -409,8 +427,10 @@ export default function ExplorePage() {
         return
       }
 
+      const typedData = data as unknown as GameState[]
+
       // Get usernames for opponents
-      const opponentIds = data.map((game) => (game.player1 === user.id ? game.player2 : game.player1)).filter(Boolean)
+      const opponentIds = typedData.map((game) => (game.player1 === user.id ? game.player2 : game.player1)).filter(Boolean)
 
       const { data: profiles } = await supabase
         .from("profiles")
@@ -418,10 +438,10 @@ export default function ExplorePage() {
         .in("id", opponentIds)
 
       // Update the processed games mapping
-      const processedGames = data.map((game) => ({
+      const processedGames = typedData.map((game) => ({
         gameStateId: game.id,
         lobbyId: game.lobby_id,
-        gameTitle: game.lobbies?.[0]?.games?.[0]?.title || "Untitled Game",
+        gameTitle: game.lobbies?.games?.title || "Battleship",
         opponent: profiles?.find(
           (p) => p.id === (game.player1 === user.id ? game.player2 : game.player1)
         )?.username || (!game.player2 ? "Waiting for opponent" : "Unknown Player"),
