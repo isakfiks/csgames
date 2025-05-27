@@ -404,25 +404,26 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
   if (error || !lobby) {
     return (
-      <div className="bg-white min-h-screen font-[family-name:var(--font-geist-sans)]">
+      <div className="bg-gradient-to-b from-white to-gray-50 min-h-screen font-[family-name:var(--font-geist-sans)]">
         <header className="max-w-4xl mx-auto p-8">
           <div className="flex justify-between items-center">
-            <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
+            <Link href="/explore" className="flex items-center text-black hover:text-gray-600 transition-colors duration-200 text-sm sm:text-base">
               <FaArrowLeft className="mr-2" />
               <span>Back to Games</span>
             </Link>
-            <div className="flex">
-              <h1 className="text-xl sm:text-2xl font-bold text-black">CSGames</h1>
+            <div className="flex items-center">
+              <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">CSGames</h1>
               <span className="text-black text-xl sm:text-2xl">.dev</span>
             </div>
           </div>
         </header>
 
         <main className="max-w-4xl mx-auto p-8">
-          <div className="text-center">
-            <div className="mb-8">
+          <div className="text-center animate-fadeIn">
+            <div className="mb-8 relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full blur-xl opacity-70"></div>
               <svg
-                className="mx-auto h-24 w-24 text-gray-400"
+                className="mx-auto h-24 w-24 text-gray-400 relative transform transition-transform hover:scale-110 duration-300"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -436,62 +437,32 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                 />
               </svg>
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Lobby Not Found</h2>
-            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">Lobby Not Found</h2>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg">
               {error || "We couldn't find the lobby you're looking for. It may have expired or been deleted."}
             </p>
 
-            <div className="space-y-4">
-              <div className="text-black bg-gray-50 rounded-lg p-6 max-w-md mx-auto">
-                <h3 className="text-lg font-semibold mb-4">What you can do:</h3>
-                <ul className="text-left space-y-3">
-                  <li className="flex items-start">
-                    <svg
-                      className="h-6 w-6 text-green-500 mr-2"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span>Check if you entered the correct lobby ID</span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg
-                      className="h-6 w-6 text-green-500 mr-2"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span>Ask your friend to send you a new invitation</span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg
-                      className="h-6 w-6 text-green-500 mr-2"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span>Create a new game lobby</span>
+            <div className="space-y-6">
+              <div className="bg-white shadow-lg rounded-2xl p-8 max-w-md mx-auto transform hover:scale-[1.02] transition-all duration-300">
+                <h3 className="text-xl font-semibold mb-6 text-gray-900">What you can do:</h3>
+                <ul className="text-left space-y-4">
+                  <li className="flex items-center p-2 hover:bg-gray-50 rounded-lg transition-colors duration-200">
+                    <div className="rounded-full bg-green-100 p-2 mr-4">
+                      <svg
+                        className="h-5 w-5 text-green-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-gray-700">Check if you entered the correct lobby ID</span>
                   </li>
                 </ul>
               </div>
@@ -499,14 +470,14 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-md mx-auto">
                 <Link
                   href="/explore"
-                  className="w-full sm:w-auto bg-black text-white px-6 py-3 rounded-lg flex items-center justify-center hover:bg-gray-800 transition-colors duration-300"
+                  className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl flex items-center justify-center hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-xl"
                 >
                   <FaGamepad className="mr-2" />
                   Browse Games
                 </Link>
                 <Link
                   href="/"
-                  className="w-full sm:w-auto bg-gray-100 text-gray-900 px-6 py-3 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors duration-300"
+                  className="w-full sm:w-auto bg-white text-gray-900 px-8 py-3 rounded-xl flex items-center justify-center hover:bg-gray-50 transition-all duration-300 shadow-md border border-gray-200"
                 >
                   <FaArrowLeft className="mr-2" />
                   Return Home
