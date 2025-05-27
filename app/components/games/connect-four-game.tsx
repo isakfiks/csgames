@@ -222,10 +222,8 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
   const [hoverColumn, setHoverColumn] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dropAnimation, setDropAnimation] = useState<{ row: number; col: number; player: number } | null>(null)
   const [winner, setWinner] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState(false)
-  const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showWinnerMessage, setShowWinnerMessage] = useState(false)
   const [invalidMoveColumn, setInvalidMoveColumn] = useState<number | null>(null)
@@ -316,7 +314,6 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
               // Always update the state
               setGameState(payload.new as GameState)
-              setLastMoveTime(Date.now())
 
               // Check if the game is over
               if (payload.new && "status" in payload.new && (payload.new as GameState).status === "finished") {
@@ -363,15 +360,6 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
                   if (changedRow !== -1 && changedCol !== -1) {
                     console.log(`Animating drop at row ${changedRow}, col ${changedCol}, player ${playerNumber}`)
 
-                    setDropAnimation({
-                      row: changedRow,
-                      col: changedCol,
-                      player: playerNumber,
-                    })
-
-                    setTimeout(() => {
-                      setDropAnimation(null)
-                    }, 500)
                   }
                 }
               }
@@ -531,8 +519,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
 
       console.log("Fetched latest game state:", data)
       setGameState(data)
-      setLastMoveTime(Date.now())
-
+      
       // Check if the game is over
       if (data.status === "finished") {
         setGameOver(true)
