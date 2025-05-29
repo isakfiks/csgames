@@ -112,7 +112,7 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     setMoveHistory([])
     setCurrentHistoryIndex(-1)
     
-    let values = Array.from({ length: 9 }, (_, i) => i)
+    const values = Array.from({ length: 9 }, (_, i) => i)
     do {
       for (let i = values.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
