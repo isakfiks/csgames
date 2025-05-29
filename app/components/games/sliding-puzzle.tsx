@@ -17,6 +17,11 @@ interface SoundEffects {
   win: HTMLAudioElement
 }
 
+interface GameStats {
+  bestTime: number
+  fewestMoves: number
+}
+
 interface SlidingPuzzleProps {
   lobbyId: string
   currentUser: User | null
@@ -47,6 +52,14 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
   const [time, setTime] = useState(0)
   const [hasWon, setHasWon] = useState(false)
   const [sounds, setSounds] = useState<SoundEffects | null>(null)
+  const [stats, setStats] = useState<GameStats>(() => {
+    // Load stats from localStorage (might use supabase later)
+    const savedStats = localStorage.getItem('slidingPuzzleStats')
+    return savedStats ? JSON.parse(savedStats) : {
+      bestTime: Number.POSITIVE_INFINITY,
+      fewestMoves: Number.POSITIVE_INFINITY
+    }
+  })
   const [board, setBoard] = useState<Tile[]>(() => {
     const tiles: Tile[] = []
     for (let i = 0; i < 8; i++) {
@@ -167,12 +180,22 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
 
     const newHistory = moveHistory.slice(0, currentHistoryIndex + 1)
     setMoveHistory([...newHistory, newBoard])
-    setCurrentHistoryIndex(currentHistoryIndex + 1)
-
-    // Check for win after move
+    setCurrentHistoryIndex(currentHistoryIndex + 1)    // Check for win after move
     if (isWinningPosition(newBoard)) {
       setHasWon(true)
       sounds?.win.play()
+
+      // Update stats
+      const currentTime = Math.floor((Date.now() - (startTime || Date.now())) / 1000)
+      const currentMoves = moves + 1
+      setStats(prevStats => {
+        const newStats = {
+          bestTime: Math.min(prevStats.bestTime, currentTime),
+          fewestMoves: Math.min(prevStats.fewestMoves, currentMoves)
+        }
+        localStorage.setItem('slidingPuzzleStats', JSON.stringify(newStats))
+        return newStats
+      })
     }
   }, [board, isShuffling, startTime, hasWon, sounds, moveHistory, currentHistoryIndex])
 
@@ -301,6 +324,36 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md mx-auto mb-4">
+          <div className="bg-gray-100 p-3 rounded-lg">
+            <div className="text-sm text-gray-600 mb-1">Best Time</div>
+            <div className="font-mono text-lg font-bold">
+              {stats.bestTime === Number.POSITIVE_INFINITY ? "---" : `${stats.bestTime}s`}
+            </div>
+          </div>
+          <div className="bg-gray-100 p-3 rounded-lg">
+            <div className="text-sm text-gray-600 mb-1">Fewest Moves</div>
+            <div className="font-mono text-lg font-bold">
+              {stats.fewestMoves === Number.POSITIVE_INFINITY ? "---" : stats.fewestMoves}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (confirm("Are you sure you want to reset your stats?")) {
+                const resetStats = {
+                  bestTime: Number.POSITIVE_INFINITY,
+                  fewestMoves: Number.POSITIVE_INFINITY
+                }
+                setStats(resetStats)
+                localStorage.setItem('slidingPuzzleStats', JSON.stringify(resetStats))
+              }
+            }}
+            className="col-span-2 text-xs text-gray-500 hover:text-gray-700 transition-colors mt-1"
+          >
+            Reset Stats
+          </button>
+        </div>
+        
         {hasWon && (
           <div className="mb-4 p-4 bg-green-100 rounded-lg text-center animate-fadeIn max-w-md mx-auto">
             <p className="text-lg font-bold text-green-600">

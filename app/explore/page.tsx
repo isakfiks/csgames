@@ -91,6 +91,14 @@ const currentGames = [
     players: "1 player",
     singlePlayer: true,
   },
+  {
+    id: 6,
+    title: "Sliding Puzzle",
+    description: "Classic sliding tile puzzle. Rearrange the tiles to solve the puzzle.",
+    image: "/placeholder.svg?height=200&width=300",
+    players: "1 player",
+    singlePlayer: true,
+  },
 ]
 
 export default function ExplorePage() {
