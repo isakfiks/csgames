@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { motion } from "framer-motion"
+import { useState, useCallback, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
 import type { User } from "@supabase/supabase-js"
@@ -17,8 +17,19 @@ interface SlidingPuzzleProps {
   currentUser: User | null
 }
 
+function isSolvable(tiles: Tile[]): boolean {
+  const inversions = tiles.reduce((acc, tile, i) => {
+    if (tile.value === 0) return acc
+    return acc + tiles.slice(i + 1).filter(t => t.value !== 0 && t.value < tile.value).length
+  }, 0)
+  
+  // If number of inversions is even, it means the puzzle is solvable 
+  return inversions % 2 === 0
+}
+
 export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isShuffling, setIsShuffling] = useState(false)
   const [board, setBoard] = useState<Tile[]>(() => {
     const tiles: Tile[] = []
     for (let i = 0; i < 8; i++) {
@@ -37,12 +48,47 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     return tiles
   })
 
-  const handleManualRefresh = useCallback(() => {
-    setIsRefreshing(true)
-    setTimeout(() => setIsRefreshing(false), 500)
+  const shuffleBoard = useCallback(async () => {
+    if (isShuffling) return
+    setIsShuffling(true)
+    
+    let values = Array.from({ length: 9 }, (_, i) => i)
+    do {
+      for (let i = values.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [values[i], values[j]] = [values[j], values[i]]
+      }
+    } while (!isSolvable(values.map((v, i) => ({ 
+      value: v, 
+      row: Math.floor(i / 3), 
+      col: i % 3 
+    }))))
+
+    // Create the final board state
+    const finalBoard = values.map((value, i) => ({
+      value,
+      row: Math.floor(i / 3),
+      col: i % 3
+    }))
+
+    // Set the board immediately to the final state
+    setBoard(finalBoard)
+    
+    // Give time for the animation to complete
+    await new Promise(resolve => setTimeout(resolve, 500))
+    setIsShuffling(false)
   }, [])
 
-  const handleTileClick = (tile: Tile) => {
+  const handleManualRefresh = useCallback(async () => {
+    if (isRefreshing || isShuffling) return
+    setIsRefreshing(true)
+    await shuffleBoard()
+    setIsRefreshing(false)
+  }, [shuffleBoard, isRefreshing, isShuffling])
+
+  const handleTileClick = useCallback((tile: Tile) => {
+    if (isShuffling) return
+
     const emptyTile = board.find((t) => t.value === 0)
     if (!emptyTile) return
 
@@ -52,7 +98,6 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
 
     if (!isAdjacent) return
 
-    // Swaps the positions
     const newBoard = board.map((t) => {
       if (t.value === tile.value) {
         return { ...t, row: emptyTile.row, col: emptyTile.col }
@@ -64,7 +109,12 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     })
 
     setBoard(newBoard)
-  }
+  }, [board, isShuffling])
+
+  // Initial shuffle
+  useEffect(() => {
+    shuffleBoard()
+  }, [shuffleBoard])
 
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
@@ -88,9 +138,9 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
           <div className="flex items-center space-x-4">
             <button
               onClick={handleManualRefresh}
-              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing ? "animate-spin" : ""}`}
-              aria-label="Refresh game"
-              disabled={isRefreshing}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing || isShuffling ? "animate-spin" : ""}`}
+              aria-label="Shuffle puzzle"
+              disabled={isRefreshing || isShuffling}
             >
               <FaSync className="text-black" />
             </button>
@@ -104,41 +154,44 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
           }}
         >
           <div className="aspect-square bg-gray-100 rounded-xl p-3 relative">
-            {board.map((tile) => (
-              tile.value !== 0 && (
-                <motion.button
-                  key={tile.value}
-                  className="absolute bg-white rounded-lg text-2xl font-bold shadow-lg 
-                           hover:bg-gray-50 active:bg-gray-100 transition-colors
-                           flex items-center justify-center cursor-pointer
-                           border-2 border-gray-200"
-                  style={{
-                    width: "calc(33.333% - 8px)",
-                    height: "calc(33.333% - 8px)",
-                    left: `calc(${tile.col} * 33.333% + 4px)`,
-                    top: `calc(${tile.row} * 33.333% + 4px)`,
-                  }}
-                  onClick={() => handleTileClick(tile)}
-                  animate={{
-                    left: `calc(${tile.col} * 33.333% + 4px)`,
-                    top: `calc(${tile.row} * 33.333% + 4px)`,
-                  }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 200,
-                    damping: 20
-                  }}
-                  whileHover={{
-                    scale: 1.02,
-                  }}
-                  whileTap={{
-                    scale: 0.95,
-                  }}
-                >
-                  {tile.value}
-                </motion.button>
-              )
-            ))}
+            <AnimatePresence>
+              {board.map((tile) => (
+                tile.value !== 0 && (
+                  <motion.button
+                    key={tile.value}
+                    className="absolute bg-white rounded-lg text-2xl font-bold shadow-lg 
+                             hover:bg-gray-50 active:bg-gray-100 transition-colors
+                             flex items-center justify-center cursor-pointer
+                             border-2 border-gray-200"
+                    style={{
+                      width: "calc(33.333% - 8px)",
+                      height: "calc(33.333% - 8px)",
+                      left: `calc(${tile.col} * 33.333% + 4px)`,
+                      top: `calc(${tile.row} * 33.333% + 4px)`,
+                    }}
+                    onClick={() => handleTileClick(tile)}
+                    initial={isShuffling ? { scale: 0.8, opacity: 0 } : false}
+                    animate={{
+                      left: `calc(${tile.col} * 33.333% + 4px)`,
+                      top: `calc(${tile.row} * 33.333% + 4px)`,
+                      scale: 1,
+                      opacity: 1
+                    }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 25,
+                      opacity: { duration: 0.2 }
+                    }}
+                    whileHover={isShuffling ? {} : { scale: 1.02 }}
+                    whileTap={isShuffling ? {} : { scale: 0.95 }}
+                  >
+                    {tile.value}
+                  </motion.button>
+                )
+              ))}
+            </AnimatePresence>
           </div>
         </div>
       </main>
