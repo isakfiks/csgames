@@ -3,13 +3,18 @@
 import { useState, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
-import { FaArrowLeft, FaRedo, FaSync } from "react-icons/fa"
+import { FaArrowLeft, FaRedo, FaSync, FaUndo } from "react-icons/fa"
 import type { User } from "@supabase/supabase-js"
 
 interface Tile {
   value: number
   row: number
   col: number
+}
+
+interface SoundEffects {
+  move: HTMLAudioElement
+  win: HTMLAudioElement
 }
 
 interface SlidingPuzzleProps {
@@ -41,6 +46,7 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
   const [startTime, setStartTime] = useState<number | null>(null)
   const [time, setTime] = useState(0)
   const [hasWon, setHasWon] = useState(false)
+  const [sounds, setSounds] = useState<SoundEffects | null>(null)
   const [board, setBoard] = useState<Tile[]>(() => {
     const tiles: Tile[] = []
     for (let i = 0; i < 8; i++) {
@@ -58,6 +64,16 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     })
     return tiles
   })
+  const [moveHistory, setMoveHistory] = useState<Tile[][]>([])
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1)
+
+  // Initialize sfx
+  useEffect(() => {
+    setSounds({
+      move: new Audio("/sounds/slide.wav"),
+      win: new Audio("/sounds/win.wav"),
+    })
+  }, [])
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
@@ -80,6 +96,8 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     setTime(0)
     setStartTime(null)
     setHasWon(false)
+    setMoveHistory([])
+    setCurrentHistoryIndex(-1)
     
     let values = Array.from({ length: 9 }, (_, i) => i)
     do {
@@ -145,17 +163,65 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
 
     setBoard(newBoard)
     setMoves(m => m + 1)
+    sounds?.move.play()
+
+    const newHistory = moveHistory.slice(0, currentHistoryIndex + 1)
+    setMoveHistory([...newHistory, newBoard])
+    setCurrentHistoryIndex(currentHistoryIndex + 1)
 
     // Check for win after move
     if (isWinningPosition(newBoard)) {
       setHasWon(true)
+      sounds?.win.play()
     }
-  }, [board, isShuffling, startTime, hasWon])
+  }, [board, isShuffling, startTime, hasWon, sounds, moveHistory, currentHistoryIndex])
+
+  const handleUndo = useCallback(() => {
+    if (currentHistoryIndex <= 0 || isShuffling || hasWon) return
+    const prevBoard = moveHistory[currentHistoryIndex - 1]
+    setBoard(prevBoard)
+    setCurrentHistoryIndex(currentHistoryIndex - 1)
+    setMoves(m => m - 1)
+    sounds?.move.play()
+  }, [currentHistoryIndex, moveHistory, isShuffling, hasWon, sounds])
+
+  const handleRedo = useCallback(() => {
+    if (currentHistoryIndex >= moveHistory.length - 1 || isShuffling || hasWon) return
+    const nextBoard = moveHistory[currentHistoryIndex + 1]
+    setBoard(nextBoard)
+    setCurrentHistoryIndex(currentHistoryIndex + 1)
+    setMoves(m => m + 1)
+    sounds?.move.play()
+  }, [currentHistoryIndex, moveHistory, isShuffling, hasWon, sounds])
 
   // Initial shuffle
   useEffect(() => {
     shuffleBoard()
   }, [shuffleBoard])
+
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (isShuffling || hasWon) return
+
+      // Undo on ctrl + z
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      }
+      
+      // Redo on ctrl + y
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [handleUndo, handleRedo, isShuffling, hasWon])
+
+  const undoCount = currentHistoryIndex
+  const redoCount = moveHistory.length - 1 - currentHistoryIndex
 
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
@@ -177,6 +243,44 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
           <h2 className="text-2xl md:text-3xl font-bold text-black mb-2 md:mb-0">Sliding Puzzle</h2>
 
           <div className="flex items-center space-x-4">
+            <div className="relative group">
+              <button
+                onClick={handleUndo}
+                className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors
+                          ${(currentHistoryIndex <= 0 || isShuffling || hasWon) ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={currentHistoryIndex <= 0 || isShuffling || hasWon}
+                aria-label="Undo move"
+              >
+                <FaUndo className="text-black" />
+              </button>
+              {undoCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-black text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {undoCount}
+                </span>
+              )}
+              <span className="absolute left-1/2 -translate-x-1/2 -bottom-8 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Undo (Ctrl+Z)
+              </span>
+            </div>
+            <div className="relative group">
+              <button
+                onClick={handleRedo}
+                className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors
+                          ${(currentHistoryIndex >= moveHistory.length - 1 || isShuffling || hasWon) ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={currentHistoryIndex >= moveHistory.length - 1 || isShuffling || hasWon}
+                aria-label="Redo move"
+              >
+                <FaRedo className="text-black" />
+              </button>
+              {redoCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-black text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {redoCount}
+                </span>
+              )}
+              <span className="absolute left-1/2 -translate-x-1/2 -bottom-8 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Redo (Ctrl+Y)
+              </span>
+            </div>
             <button
               onClick={handleManualRefresh}
               className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors ${isRefreshing || isShuffling ? "animate-spin" : ""}`}
