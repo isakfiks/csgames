@@ -27,9 +27,20 @@ function isSolvable(tiles: Tile[]): boolean {
   return inversions % 2 === 0
 }
 
+function isWinningPosition(board: Tile[]): boolean {
+  return board.every((tile) => 
+    tile.value === 0 ||
+    (tile.row * 3 + tile.col === tile.value - 1) // Check if tile is in correct position
+  )
+}
+
 export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isShuffling, setIsShuffling] = useState(false)
+  const [moves, setMoves] = useState(0)
+  const [startTime, setStartTime] = useState<number | null>(null)
+  const [time, setTime] = useState(0)
+  const [hasWon, setHasWon] = useState(false)
   const [board, setBoard] = useState<Tile[]>(() => {
     const tiles: Tile[] = []
     for (let i = 0; i < 8; i++) {
@@ -48,9 +59,27 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     return tiles
   })
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null
+
+    if (startTime && !hasWon) {
+      interval = setInterval(() => {
+        setTime(Math.floor((Date.now() - startTime) / 1000))
+      }, 1000)
+    }
+
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [startTime, hasWon])
+
   const shuffleBoard = useCallback(async () => {
     if (isShuffling) return
     setIsShuffling(true)
+    setMoves(0)
+    setTime(0)
+    setStartTime(null)
+    setHasWon(false)
     
     let values = Array.from({ length: 9 }, (_, i) => i)
     do {
@@ -76,6 +105,7 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     
     // Give time for the animation to complete
     await new Promise(resolve => setTimeout(resolve, 500))
+    setStartTime(Date.now())
     setIsShuffling(false)
   }, [])
 
@@ -87,7 +117,7 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
   }, [shuffleBoard, isRefreshing, isShuffling])
 
   const handleTileClick = useCallback((tile: Tile) => {
-    if (isShuffling) return
+    if (isShuffling || hasWon) return
 
     const emptyTile = board.find((t) => t.value === 0)
     if (!emptyTile) return
@@ -97,6 +127,11 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
       (Math.abs(tile.col - emptyTile.col) === 1 && tile.row === emptyTile.row)
 
     if (!isAdjacent) return
+
+    // Start timer on first move if not started
+    if (!startTime) {
+      setStartTime(Date.now())
+    }
 
     const newBoard = board.map((t) => {
       if (t.value === tile.value) {
@@ -109,7 +144,13 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
     })
 
     setBoard(newBoard)
-  }, [board, isShuffling])
+    setMoves(m => m + 1)
+
+    // Check for win after move
+    if (isWinningPosition(newBoard)) {
+      setHasWon(true)
+    }
+  }, [board, isShuffling, startTime, hasWon])
 
   // Initial shuffle
   useEffect(() => {
@@ -146,6 +187,33 @@ export default function SlidingPuzzle({ lobbyId }: SlidingPuzzleProps) {
             </button>
           </div>
         </div>
+
+        <div className="flex justify-between items-center w-full max-w-md mx-auto mb-4 bg-gray-100 p-3 rounded-lg">
+          <div className="bg-black text-white px-3 py-1 rounded font-mono">
+            {moves.toString().padStart(3, "0")}
+          </div>
+          <div className="bg-black text-white px-3 py-1 rounded font-mono">
+            {time.toString().padStart(3, "0")}s
+          </div>
+        </div>
+
+        {hasWon && (
+          <div className="mb-4 p-4 bg-green-100 rounded-lg text-center animate-fadeIn max-w-md mx-auto">
+            <p className="text-lg font-bold text-green-600">
+              Puzzle solved! 🎉 
+            </p>
+            <p className="text-sm text-green-600">
+              Completed in {moves} moves and {time} seconds
+            </p>
+            <button
+              onClick={handleManualRefresh}
+              className="mt-2 bg-black text-white px-4 py-2 rounded-lg flex items-center mx-auto"
+            >
+              <FaRedo className="mr-2" />
+              Play Again
+            </button>
+          </div>
+        )}
 
         <div 
           className="bg-gray-100 p-4 rounded-lg mx-auto max-w-md relative"
