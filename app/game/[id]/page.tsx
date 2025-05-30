@@ -9,6 +9,7 @@ import ConnectFourGame from "@/app/components/games/connect-four-game"
 import TicTacToeGame from "@/app/components/games/tic-tac-toe-game"
 import MinesweeperGame from "@/app/components/games/minesweep"
 import BattleshipGame from "@/app/components/games/battleship"
+import BalloonGame from "@/app/components/games/balloon-game"
 import GameLoading from "@/app/components/games/game-loading"
 import Link from "next/link"
 import { FaGamepad, FaArrowLeft } from "react-icons/fa"
@@ -291,7 +292,8 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
 
   // Render the appropriate game based on game.title and whether it's an AI opp
   return (
-    <>
+    <>      {game.title === "Balloon Game" && <BalloonGame lobbyId={lobby.id} currentUser={currentUser} />}
+
       {game.title === "Connect Four" && <ConnectFourGame lobbyId={lobby.id} currentUser={currentUser} />}
 
       {game.title === "Tic Tac Toe" && (

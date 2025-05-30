@@ -76,6 +76,14 @@ const currentGames = [
     singlePlayer: false,
   },
   {
+    id: 7,
+    title: "Balloon Game",
+    description: "Take turns pumping a balloon - but don't let it pop!",
+    image: "/placeholder.svg?height=200&width=300",
+    players: "2 players", 
+    singlePlayer: false,
+  },
+  {
     id: 4,
     title: "Battleship",
     description: "Naval combat strategy game with hidden ship placement.",

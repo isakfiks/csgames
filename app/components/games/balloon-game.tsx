@@ -49,9 +49,46 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const gameStateIdRef = useRef<string | null>(null)
 
+  const retryRequest = async (fn: () => Promise<any>, maxRetries = 3, delayMs = 500) => {
+    let lastError
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const result = await fn()
+        return result
+      } catch (err) {
+        console.log(`Request attempt ${i + 1} failed:`, err)
+        lastError = err
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+      }
+    }
+    throw lastError
+  }
+
   useEffect(() => {
     let isActive = true
     let gameStateSubscription: RealtimeChannel | null = null
+    let pollInterval: NodeJS.Timeout | null = null
+
+    async function fetchLatestGameState() {
+      if (!gameStateIdRef.current || !isActive) return
+
+      try {
+        const { data, error } = await supabase
+          .from("balloon_game_states")
+          .select("*")
+          .eq("id", gameStateIdRef.current)
+          .single()
+
+        if (error) throw error
+        if (isActive && data) {
+          setGameState(data)
+        }
+      } catch (err) {
+        console.error("Error polling game state:", err)
+      }
+    }
 
     async function loadGameData() {
       try {
@@ -60,61 +97,110 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
           return
         }
 
-        let { data: gameStateData, error: gameStateError } = await supabase
-          .from("balloon_game_states")
-          .select("*")
-          .eq("lobby_id", lobbyId)
-          .single()
+        // Check if game state exists - with retry
+        const { data: freshGameState, error: gameStateError } = await retryRequest(async () => 
+          supabase
+            .from("balloon_game_states")
+            .select("*")
+            .eq("lobby_id", lobbyId)
+            .single()
+        )
 
         if (gameStateError && gameStateError.code !== "PGRST116") {
           throw gameStateError
         }
 
+        let gameStateData = freshGameState
+
+        // Initialize new game state if none exists
         if (!gameStateData) {
-          const { data: newGameState, error: createError } = await supabase
-            .from("balloon_game_states")
-            .insert({
-              lobby_id: lobbyId,
-              player1: currentUser.id,
-              current_player: currentUser.id,
-              pop_threshold: Math.floor(Math.random() * 100) + 50,
-              size: 24,
-              score: 0,
-              is_popped: false,
-              remaining_pumps: 3,
-              turn_timer: 10,
-              status: "waiting"
-            })
-            .select()
-            .single()
+          console.log('Creating new game state...')
+          try {
+            const { data: newGameState, error: createError } = await retryRequest(async () =>
+              supabase
+                .from("balloon_game_states")
+                .insert({
+                  lobby_id: lobbyId,
+                  player1: currentUser.id,
+                  current_player: currentUser.id,
+                  pop_threshold: Math.floor(Math.random() * 100) + 50,
+                  size: 24,
+                  score: 0,
+                  is_popped: false,
+                  remaining_pumps: 3,
+                  turn_timer: 10,
+                  status: "waiting"
+                })
+                .select()
+                .single()
+            )
 
-          if (createError) throw createError
-          gameStateData = newGameState
+            if (createError) {
+              if (createError.code === '23505') { // Unique violation
+                console.log('Game already exists, fetching existing game...')
+                const { data: existingGame, error: fetchError } = await retryRequest(async () =>
+                  supabase
+                    .from("balloon_game_states")
+                    .select("*")
+                    .eq("lobby_id", lobbyId)
+                    .single()
+                )
+                if (fetchError) throw fetchError
+                gameStateData = existingGame
+              } else {
+                console.error('Error creating game:', createError)
+                throw createError
+              }
+            } else {
+              console.log('Created new game state:', newGameState)
+              gameStateData = newGameState
+            }
+          } catch (err) {
+            console.error('Error in game creation/fetch:', err)
+            throw err
+          }
         }
+        // Join as player 2 if possible
         else if (!gameStateData.player2 && gameStateData.player1 !== currentUser.id) {
-          const { data: updatedState, error: joinError } = await supabase.rpc("join_balloon_game", {
-            p_game_state_id: gameStateData.id,
-            p_player2: currentUser.id
-          })
+          console.log('Joining as player 2...')
+          const { data: updatedState, error: joinError } = await retryRequest(async () =>
+            supabase.rpc("join_balloon_game", {
+              p_game_state_id: gameStateData.id,
+              p_player2: currentUser.id
+            })
+          )
 
-          if (joinError) throw joinError
+          if (joinError) {
+            console.error('Error joining game:', joinError)
+            throw joinError
+          }
+          console.log('Joined game as player 2:', updatedState)
           gameStateData = updatedState
         }
 
         if (isActive) {
+          console.log('Setting game state:', gameStateData)
           setGameState(gameStateData)
           gameStateIdRef.current = gameStateData.id
         }
 
         // Get plr profiles
         const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("*")
-          .in("id", playerIds)
+        if (playerIds.length > 0) {
+          console.log('Fetching player profiles...')
+          const { data: profiles, error: profileError } = await retryRequest(async () =>
+            supabase
+              .from("profiles")
+              .select("*")
+              .in("id", playerIds)
+          )
 
-        if (isActive && profiles) {
-          setPlayers(profiles)
+          if (profileError) {
+            console.error('Error fetching profiles:', profileError)
+          } else if (isActive && profiles) {
+            console.log('Setting player profiles:', profiles)
+            setPlayers(profiles)
+          }
         }
 
         // Set up real-time sub
@@ -125,15 +211,27 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
             {
               event: "*",
               schema: "public",
-              table: "balloon_game_states",
+              table: "balloon_game_states", 
               filter: `id=eq.${gameStateData.id}`
             },
-            payload => {
+            async payload => {
               if (!isActive) return
+              console.log('Received game state update:', payload)
               const newState = payload.new as GameState
               setGameState(newState)
-              if (newState.status === "finished") {
-                // Handle game over (note to self: add this soon lmao)
+
+              const updatedPlayerIds = [newState.player1, newState.player2].filter(Boolean)
+              if (updatedPlayerIds.length > 0) {
+                const { data: updatedProfiles } = await retryRequest(async () =>
+                  supabase
+                    .from("profiles")
+                    .select("*")
+                    .in("id", updatedPlayerIds)
+                )
+
+                if (isActive && updatedProfiles) {
+                  setPlayers(updatedProfiles)
+                }
               }
             }
           )
@@ -141,7 +239,15 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
       } catch (err: unknown) {
         console.error("Error loading game data:", err)
-        if (isActive) setError((err as Error).message || "Failed to load game data")
+        if (isActive) {
+          if (err instanceof Error) {
+            setError(err.message)
+          } else if (typeof err === 'object' && err !== null && 'message' in err) {
+            setError(String(err.message))
+          } else {
+            setError("Failed to load game data")
+          }
+        }
       } finally {
         if (isActive) setLoading(false)
       }
@@ -149,9 +255,13 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
     loadGameData()
 
+    pollInterval = setInterval(fetchLatestGameState, 5000)
+
     return () => {
+      console.log('Cleanup: unsubscribing and clearing intervals')
       isActive = false
       if (gameStateSubscription) gameStateSubscription.unsubscribe()
+      if (pollInterval) clearInterval(pollInterval)
     }
   }, [lobbyId, router, supabase, currentUser])
 
@@ -165,8 +275,11 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
       if (error) throw error
 
-      // Update highscore if game ended
-      if (data.is_popped && data.score > highScore) {
+      if (data) {
+        setGameState(data)
+      }
+
+      if (data?.is_popped && data.score > highScore) {
         setHighScore(data.score)
       }
     } catch (err) {
@@ -178,16 +291,28 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
     if (!gameState || !currentUser || gameState.current_player !== currentUser.id) return
 
     try {
+      const nextPlayer = gameState.player1 === currentUser.id ? gameState.player2! : gameState.player1
+      
+      setGameState({
+        ...gameState,
+        current_player: nextPlayer,
+        remaining_pumps: 3,
+        status: "playing" as const
+      })
+
       const { error } = await supabase
         .from("balloon_game_states")
         .update({
-          current_player: gameState.player1 === currentUser.id ? gameState.player2 : gameState.player1,
+          current_player: nextPlayer,
           remaining_pumps: 3,
-          status: "waiting_turn"
+          status: "playing"
         })
         .eq("id", gameState.id)
 
-      if (error) throw error
+      if (error) {
+        setGameState(gameState)
+        throw error
+      }
     } catch (err) {
       console.error("Error ending turn:", err)
     }
