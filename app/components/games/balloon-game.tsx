@@ -32,6 +32,21 @@ interface GameState {
   created_at: string
 }
 
+interface PlayerStats {
+  total_games: number
+  wins: number
+  highest_score: number
+  average_score: number
+}
+
+interface MatchHistory {
+  id: string
+  winner_id: string
+  loser_id: string
+  final_score: number
+  created_at: string
+}
+
 interface BalloonGameProps {
   lobbyId: string
   currentUser: User | null
@@ -46,6 +61,8 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
   const [players, setPlayers] = useState<Profile[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [highScore, setHighScore] = useState(0)
+  const [playerStats, setPlayerStats] = useState<Record<string, PlayerStats>>({})
+  const [matchHistory, setMatchHistory] = useState<MatchHistory[]>([])
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const gameStateIdRef = useRef<string | null>(null)
 
@@ -295,6 +312,65 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
     }
   }, [lobbyId, router, supabase, currentUser])
 
+  useEffect(() => {
+    async function loadPlayerStats() {
+      if (!players.length) return
+
+      try {
+        const playerIds = players.map(p => p.id)
+        const { data: stats, error: statsError } = await supabase
+          .from('player_stats')
+          .select('*')
+          .in('player_id', playerIds)
+
+        if (statsError) throw statsError
+
+        const statsMap: Record<string, PlayerStats> = {}
+        stats.forEach((stat: any) => {
+          statsMap[stat.player_id] = {
+            total_games: stat.total_games,
+            wins: stat.wins,
+            highest_score: stat.highest_score,
+            average_score: stat.average_score
+          }
+        })
+        setPlayerStats(statsMap)
+
+        // Fetch recent match history
+        const { data: history, error: historyError } = await supabase
+          .from('match_history')
+          .select('*')
+          .or(`winner_id.in.(${playerIds}),loser_id.in.(${playerIds})`)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (historyError) throw historyError
+        setMatchHistory(history)
+      } catch (err) {
+        console.error('Error loading player stats:', err)
+      }
+    }
+
+    loadPlayerStats()
+  }, [players, supabase])
+
+  const retryRequest2 = async (fn: () => Promise<any>, maxRetries = 3, delayMs = 500) => {
+    let lastError
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const result = await fn()
+        return result
+      } catch (err) {
+        console.log(`Request attempt ${i + 1} failed:`, err)
+        lastError = err
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+      }
+    }
+    throw lastError
+  }
+
   const handlePump = useCallback(async () => {
     if (!gameState || !currentUser || gameState.is_popped || gameState.current_player !== currentUser.id) return
 
@@ -307,6 +383,26 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
       if (data) {
         setGameState(data)
+        
+        // Record the win-
+        if (data.is_popped) {
+          const winnerId = data.player1 === currentUser.id ? data.player2 : data.player1
+          try {
+            const response = await fetch('/api/record-win', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                gameStateId: data.id,
+                winnerId
+              })
+            })
+            if (!response.ok) {
+              throw new Error('Failed to record win')
+            }
+          } catch (err) {
+            console.error('Error recording win:', err)
+          }
+        }
       }
 
       if (data?.is_popped && data.score > highScore) {
@@ -365,6 +461,19 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
       setIsRefreshing(false)
     }
   }, [supabase])
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  const getWinRate = (stats: PlayerStats) => {
+    if (!stats.total_games) return '0%'
+    return `${Math.round((stats.wins / stats.total_games) * 100)}%`
+  }
 
   const getPlayerName = (playerId: string) => {
     const player = players.find(p => p.id === playerId)
@@ -506,11 +615,14 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
                 End Turn
               </button>
             )}
-          </div>
-
-          {gameState.is_popped && (
+          </div>          {gameState.is_popped && (
             <div className="text-center">
-              <p className="text-lg font-bold">Score: {gameState.score}</p>
+              <p className="text-xl font-bold mb-2">
+                {gameState.winner === currentUser?.id 
+                  ? "You won! 🎉" 
+                  : `${getPlayerName(gameState.winner || "")} won!`}
+              </p>
+              <p className="text-lg font-bold">Final Score: {gameState.score}</p>
               <p className="text-sm text-gray-600">High Score: {highScore}</p>
             </div>
           )}
@@ -525,6 +637,67 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
               </p>
             </div>
           )}
+        </div>
+
+        <div className="mt-12 border-t pt-8">
+          <h3 className="text-xl font-bold mb-6">Player Statistics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {players.map(player => {
+              const stats = playerStats[player.id] || {
+                total_games: 0,
+                wins: 0,
+                highest_score: 0,
+                average_score: 0
+              }
+              
+              return (
+                <div key={player.id} className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-bold mb-3">{getPlayerName(player.id)}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Games Played</p>
+                      <p className="font-bold">{stats.total_games}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Win Rate</p>
+                      <p className="font-bold">{getWinRate(stats)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Highest Score</p>
+                      <p className="font-bold">{stats.highest_score}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Avg Score</p>
+                      <p className="font-bold">{Math.round(stats.average_score)}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <h3 className="text-xl font-bold mt-8 mb-6">Recent Matches</h3>
+          <div className="bg-gray-50 rounded-lg overflow-hidden">
+            {matchHistory.length > 0 ? (
+              <div className="divide-y">
+                {matchHistory.map(match => (
+                  <div key={match.id} className="p-4 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold">{getPlayerName(match.winner_id)}</span>
+                      <span className="text-gray-600 mx-2">vs</span>
+                      <span className="font-bold">{getPlayerName(match.loser_id)}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">{formatDate(match.created_at)}</p>
+                      <p className="font-bold">Score: {match.final_score}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="p-4 text-center text-gray-600">No recent matches</p>
+            )}
+          </div>
         </div>
       </main>
     </div>
