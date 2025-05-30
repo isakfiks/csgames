@@ -71,6 +71,57 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
     let gameStateSubscription: RealtimeChannel | null = null
     let pollInterval: NodeJS.Timeout | null = null
 
+    async function setupRealtimeSubscription(gameId: string) {
+      if (!isActive) return
+      
+      try {
+        if (gameStateSubscription) {
+          await gameStateSubscription.unsubscribe()
+        }
+
+        gameStateSubscription = supabase
+          .channel(`balloon_game_${gameId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "balloon_game_states", 
+              filter: `id=eq.${gameId}`
+            },
+            async payload => {
+              if (!isActive) return
+              console.log('Received game state update:', payload)
+              const newState = payload.new as GameState
+              setGameState(newState)
+
+              const updatedPlayerIds = [newState.player1, newState.player2].filter(Boolean)
+              if (updatedPlayerIds.length > 0) {
+                const { data: updatedProfiles } = await retryRequest(async () =>
+                  supabase
+                    .from("profiles")
+                    .select("*")
+                    .in("id", updatedPlayerIds)
+                )
+
+                if (isActive && updatedProfiles) {
+                  setPlayers(updatedProfiles)
+                }
+              }
+            }
+          );
+        gameStateSubscription.subscribe();
+        console.log('Successfully subscribed to game updates')
+      } catch (err) {
+        console.error('Error setting up subscription:', err)
+        setTimeout(() => {
+          if (isActive) {
+            setupRealtimeSubscription(gameId)
+          }
+        }, 1000)
+      }
+    }
+
     async function fetchLatestGameState() {
       if (!gameStateIdRef.current || !isActive) return
 
@@ -171,17 +222,30 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
           )
 
           if (joinError) {
-            console.error('Error joining game:', joinError)
-            throw joinError
+            const { data: latestState, error: fetchError } = await supabase
+              .from("balloon_game_states")
+              .select("*")
+              .eq("id", gameStateData.id)
+              .single()
+
+            if (fetchError) throw fetchError
+
+            if (latestState.player2 === currentUser.id) {
+              gameStateData = latestState
+            } else {
+              throw joinError
+            }
+          } else {
+            console.log('Joined game as player 2:', updatedState)
+            gameStateData = updatedState
           }
-          console.log('Joined game as player 2:', updatedState)
-          gameStateData = updatedState
         }
 
         if (isActive) {
           console.log('Setting game state:', gameStateData)
           setGameState(gameStateData)
           gameStateIdRef.current = gameStateData.id
+          await setupRealtimeSubscription(gameStateData.id)
         }
 
         // Get plr profiles
@@ -202,40 +266,6 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
             setPlayers(profiles)
           }
         }
-
-        // Set up real-time sub
-        gameStateSubscription = supabase
-          .channel(`balloon_game_${gameStateData.id}`)
-          .on(
-            "postgres_changes",
-            {
-              event: "*",
-              schema: "public",
-              table: "balloon_game_states", 
-              filter: `id=eq.${gameStateData.id}`
-            },
-            async payload => {
-              if (!isActive) return
-              console.log('Received game state update:', payload)
-              const newState = payload.new as GameState
-              setGameState(newState)
-
-              const updatedPlayerIds = [newState.player1, newState.player2].filter(Boolean)
-              if (updatedPlayerIds.length > 0) {
-                const { data: updatedProfiles } = await retryRequest(async () =>
-                  supabase
-                    .from("profiles")
-                    .select("*")
-                    .in("id", updatedPlayerIds)
-                )
-
-                if (isActive && updatedProfiles) {
-                  setPlayers(updatedProfiles)
-                }
-              }
-            }
-          )
-          .subscribe()
 
       } catch (err: unknown) {
         console.error("Error loading game data:", err)
