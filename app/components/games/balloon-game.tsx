@@ -1,9 +1,36 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FaArrowLeft, FaSync } from "react-icons/fa"
 import type { User } from "@supabase/supabase-js"
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import GameLoading from "./game-loading"
+import GameError from "./game-error"
+import type { RealtimeChannel } from "@supabase/supabase-js"
+
+interface Profile {
+  id: string
+  username: string
+}
+
+interface GameState {
+  id: string
+  lobby_id: string
+  size: number
+  score: number
+  is_popped: boolean 
+  current_player: string
+  remaining_pumps: number
+  turn_timer: number
+  pop_threshold: number
+  status: 'waiting' | 'playing' | 'waiting_turn' | 'finished'
+  winner: string | null
+  player1: string
+  player2: string | null
+  created_at: string
+}
 
 interface BalloonGameProps {
   lobbyId: string
@@ -11,96 +38,189 @@ interface BalloonGameProps {
 }
 
 export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) {
-  const [size, setSize] = useState(24)
-  const [score, setScore] = useState(0)
+  const router = useRouter()
+  const supabase = createClientComponentClient()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [gameState, setGameState] = useState<GameState | null>(null)
+  const [players, setPlayers] = useState<Profile[]>([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [highScore, setHighScore] = useState(0)
-  const [isPopped, setIsPopped] = useState(false)
-  const [popThreshold] = useState(() => Math.floor(Math.random() * 100) + 50) // Increased threshold
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true)
-  const [remainingPumps, setRemainingPumps] = useState(3)
-  const [turnTimer, setTurnTimer] = useState(10)
-
-  const resetGame = useCallback(() => {
-    setSize(24)
-    setScore(0)
-    setIsPopped(false)
-    setIsPlayerTurn(true)
-    setRemainingPumps(3)
-    setTurnTimer(10)
-  }, [])
-
-  const performBotTurn = useCallback(() => {
-    if (!isPopped) {
-      const pumps = Math.floor(Math.random() * 3) + 1
-      let currentPump = 0
-
-      const doPump = () => {
-        const newSize = size + 4
-        if (newSize >= popThreshold) {
-          setIsPopped(true)
-          if (score > highScore) {
-            setHighScore(score)
-          }
-        } else {
-          setSize(newSize)
-          setScore(prev => prev + 1)
-          currentPump++
-          
-          if (currentPump < pumps) {
-            setTimeout(doPump, 300)
-          } else {
-            setIsPlayerTurn(true)
-            setRemainingPumps(3)
-          }
-        }
-      }
-
-      setTimeout(doPump, 300)
-    }
-  }, [size, score, highScore, isPopped, popThreshold])
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const gameStateIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    let timer: NodeJS.Timeout
-    if (!isPopped && turnTimer > 0) {
-      timer = setTimeout(() => {
-        setTurnTimer(prev => prev - 1)
-      }, 1000)
-    } else if (turnTimer === 0) {
-      setIsPlayerTurn(prev => !prev)
-      setTurnTimer(10)
-      if (isPlayerTurn) {
-        setTimeout(performBotTurn, 300)
+    let isActive = true
+    let gameStateSubscription: RealtimeChannel | null = null
+
+    async function loadGameData() {
+      try {
+        if (!currentUser) {
+          router.push("/")
+          return
+        }
+
+        let { data: gameStateData, error: gameStateError } = await supabase
+          .from("balloon_game_states")
+          .select("*")
+          .eq("lobby_id", lobbyId)
+          .single()
+
+        if (gameStateError && gameStateError.code !== "PGRST116") {
+          throw gameStateError
+        }
+
+        if (!gameStateData) {
+          const { data: newGameState, error: createError } = await supabase
+            .from("balloon_game_states")
+            .insert({
+              lobby_id: lobbyId,
+              player1: currentUser.id,
+              current_player: currentUser.id,
+              pop_threshold: Math.floor(Math.random() * 100) + 50,
+              size: 24,
+              score: 0,
+              is_popped: false,
+              remaining_pumps: 3,
+              turn_timer: 10,
+              status: "waiting"
+            })
+            .select()
+            .single()
+
+          if (createError) throw createError
+          gameStateData = newGameState
+        }
+        else if (!gameStateData.player2 && gameStateData.player1 !== currentUser.id) {
+          const { data: updatedState, error: joinError } = await supabase.rpc("join_balloon_game", {
+            p_game_state_id: gameStateData.id,
+            p_player2: currentUser.id
+          })
+
+          if (joinError) throw joinError
+          gameStateData = updatedState
+        }
+
+        if (isActive) {
+          setGameState(gameStateData)
+          gameStateIdRef.current = gameStateData.id
+        }
+
+        // Get plr profiles
+        const playerIds = [gameStateData.player1, gameStateData.player2].filter(Boolean)
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", playerIds)
+
+        if (isActive && profiles) {
+          setPlayers(profiles)
+        }
+
+        // Set up real-time sub
+        gameStateSubscription = supabase
+          .channel(`balloon_game_${gameStateData.id}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "balloon_game_states",
+              filter: `id=eq.${gameStateData.id}`
+            },
+            payload => {
+              if (!isActive) return
+              const newState = payload.new as GameState
+              setGameState(newState)
+              if (newState.status === "finished") {
+                // Handle game over (note to self: add this soon lmao)
+              }
+            }
+          )
+          .subscribe()
+
+      } catch (err: unknown) {
+        console.error("Error loading game data:", err)
+        if (isActive) setError((err as Error).message || "Failed to load game data")
+      } finally {
+        if (isActive) setLoading(false)
       }
     }
-    return () => clearTimeout(timer)
-  }, [turnTimer, isPopped, isPlayerTurn, performBotTurn])
 
-  const handleEndTurn = useCallback(() => {
-    setIsPlayerTurn(false)
-    setTurnTimer(10)
-    setTimeout(performBotTurn, 300)
-  }, [performBotTurn])
+    loadGameData()
 
-  const handlePump = useCallback(() => {
-    if (isPopped || !isPlayerTurn) return
-    
-    const newSize = size + 4
-    if (newSize >= popThreshold) {
-      setIsPopped(true)
-      if (score > highScore) {
-        setHighScore(score)
-      }
-    } else {
-      setSize(newSize)
-      setScore(prev => prev + 1)
-      const newRemainingPumps = remainingPumps - 1
-      setRemainingPumps(newRemainingPumps)
-      
-      if (newRemainingPumps === 0) {
-        handleEndTurn()
-      }
+    return () => {
+      isActive = false
+      if (gameStateSubscription) gameStateSubscription.unsubscribe()
     }
-  }, [size, score, highScore, isPopped, popThreshold, isPlayerTurn, remainingPumps, handleEndTurn])
+  }, [lobbyId, router, supabase, currentUser])
+
+  const handlePump = useCallback(async () => {
+    if (!gameState || !currentUser || gameState.is_popped || gameState.current_player !== currentUser.id) return
+
+    try {
+      const { data, error } = await supabase.rpc("pump_balloon", {
+        game_state_id: gameState.id
+      })
+
+      if (error) throw error
+
+      // Update highscore if game ended
+      if (data.is_popped && data.score > highScore) {
+        setHighScore(data.score)
+      }
+    } catch (err) {
+      console.error("Error pumping balloon:", err)
+    }
+  }, [gameState, currentUser, highScore, supabase])
+
+  const handleEndTurn = useCallback(async () => {
+    if (!gameState || !currentUser || gameState.current_player !== currentUser.id) return
+
+    try {
+      const { error } = await supabase
+        .from("balloon_game_states")
+        .update({
+          current_player: gameState.player1 === currentUser.id ? gameState.player2 : gameState.player1,
+          remaining_pumps: 3,
+          status: "waiting_turn"
+        })
+        .eq("id", gameState.id)
+
+      if (error) throw error
+    } catch (err) {
+      console.error("Error ending turn:", err)
+    }
+  }, [gameState, currentUser, supabase])
+
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      const { data, error } = await supabase
+        .from("balloon_game_states")
+        .select("*")
+        .eq("id", gameStateIdRef.current)
+        .single()
+
+      if (error) throw error
+      setGameState(data)
+    } catch (err) {
+      console.error("Error refreshing game state:", err)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [supabase])
+
+  const getPlayerName = (playerId: string) => {
+    const player = players.find(p => p.id === playerId)
+    return player?.username || "Unknown Player"
+  }
+
+  if (loading) return <GameLoading />
+  if (error || !gameState) return <GameError error={error || "Game not found"} />
+
+  const isMyTurn = gameState.current_player === currentUser?.id
+  const opponent = players.find(p => p.id !== currentUser?.id)
 
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
@@ -128,31 +248,69 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
           <div className="flex items-center space-x-4">
             <button
-              onClick={resetGame}
-              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300"
-              aria-label="Reset game"
+              onClick={handleManualRefresh}
+              className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-all duration-300 ${
+                isRefreshing ? "animate-spin" : ""
+              }`}
+              aria-label="Refresh game"
+              disabled={isRefreshing}
             >
               <FaSync className="text-black" />
             </button>
             <div className="bg-gray-100 px-4 py-2 rounded-lg">
-              <span className="font-mono">Score: {score}</span>
+              <span className="font-mono">Score: {gameState.score}</span>
             </div>
             <div className="bg-gray-100 px-4 py-2 rounded-lg">
-              <span className="font-mono">Time: {turnTimer}s</span>
+              <span className="font-mono">Time: {gameState.turn_timer}s</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${
+              gameState.current_player === gameState.player1 && !gameState.is_popped
+                ? "border-black shadow-md scale-105"
+                : "border-gray-200"
+            }`}
+          >
+            <div className="flex items-center">
+              <div>
+                <p className="font-bold">{getPlayerName(gameState.player1)}</p>
+                <p className="text-xs text-gray-500">{gameState.player1 === currentUser?.id ? "(You)" : ""}</p>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`p-3 rounded-lg border-2 transition-all duration-300 ${
+              gameState.current_player === gameState.player2 && !gameState.is_popped
+                ? "border-black shadow-md scale-105"
+                : "border-gray-200"
+            }`}
+          >
+            <div className="flex items-center">
+              <div>
+                <p className="font-bold">
+                  {gameState.player2 ? getPlayerName(gameState.player2) : "Waiting for opponent..."}
+                </p>
+                {gameState.player2 && (
+                  <p className="text-xs text-gray-500">{gameState.player2 === currentUser?.id ? "(You)" : ""}</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         <div className="flex flex-col items-center justify-center space-y-8">
           <div className="relative">
-            {!isPopped ? (
+            {!gameState.is_popped ? (
               <>
                 <div 
                   className="rounded-full shadow-lg transition-all duration-200" 
                   style={{ 
                     background: "radial-gradient(circle at 30% 30%, #f87171, #dc2626)",
-                    width: `${size}px`,
-                    height: `${size}px`,
+                    width: `${gameState.size}px`,
+                    height: `${gameState.size}px`,
                   }} 
                 />
                 <div className="w-2 h-8 bg-gray-400 absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full" />
@@ -165,20 +323,27 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
           <div className="flex space-x-4">
             <button
               onClick={handlePump}
-              disabled={isPopped || !isPlayerTurn}
-              className={`px-6 py-3 rounded-lg text-white font-bold transition-all duration-200 transform 
-                ${(isPopped || !isPlayerTurn)
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-black hover:bg-gray-800 hover:scale-105 active:scale-95'
-                }`}
+              disabled={
+                gameState.is_popped ||
+                !isMyTurn ||
+                gameState.status !== "playing" ||
+                !gameState.player2
+              }
+              className={`px-6 py-3 rounded-lg text-white font-bold transition-all duration-200 transform ${
+                gameState.is_popped || !isMyTurn || gameState.status !== "playing" || !gameState.player2
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-black hover:bg-gray-800 hover:scale-105 active:scale-95"
+              }`}
             >
-              {isPopped 
-                ? 'Game Over! 💥' 
-                : isPlayerTurn 
-                  ? `Pump! 🎈 (${remainingPumps} max)` 
-                  : 'Opponent is playing...'}
+              {gameState.is_popped
+                ? "Game Over! 💥"
+                : !gameState.player2
+                ? "Waiting for opponent..."
+                : isMyTurn && gameState.status === "playing"
+                ? `Pump! 🎈 (${gameState.remaining_pumps} left)`
+                : `${getPlayerName(gameState.current_player)} is playing...`}
             </button>
-            {isPlayerTurn && !isPopped && (
+            {isMyTurn && !gameState.is_popped && gameState.status === "playing" && gameState.player2 && (
               <button
                 onClick={handleEndTurn}
                 className="px-6 py-3 rounded-lg text-white font-bold bg-blue-500 hover:bg-blue-600"
@@ -188,19 +353,22 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
             )}
           </div>
 
-          {isPopped && (
+          {gameState.is_popped && (
             <div className="text-center">
-              <p className="text-lg font-bold">High Score: {highScore}</p>
-              <button
-                onClick={resetGame}
-                className="mt-2 text-blue-600 hover:underline"
-              >
-                Play Again
-              </button>
+              <p className="text-lg font-bold">Score: {gameState.score}</p>
+              <p className="text-sm text-gray-600">High Score: {highScore}</p>
             </div>
           )}
-          {!isPopped && !isPlayerTurn && (
-            <p className="text-lg font-bold text-gray-600">Opponent is playing...</p>
+
+          {!gameState.player2 && (
+            <div className="text-center">
+              <p className="text-lg font-bold text-gray-600">
+                Waiting for another player to join...
+              </p>
+              <p className="text-sm text-gray-500">
+                Share the game URL with a friend to play together!
+              </p>
+            </div>
           )}
         </div>
       </main>
