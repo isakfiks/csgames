@@ -7,17 +7,20 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
 import type { UserProfile } from "@/app/types/supabase"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const supabase = createClientComponentClient()
 
 export default function ProfilePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const userId = searchParams.get('userId')
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
     username: "",
     bio: "",
@@ -30,16 +33,9 @@ export default function ProfilePage() {
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
-        if (!session) {
-          router.push("/")
-          return
-        }
-        
-        setUser(session.user)
+        setUser(session?.user || null)
       } catch (error) {
         console.error("Error checking session:", error)
-        router.push("/")
       } finally {
         setIsLoading(false)
       }
@@ -49,46 +45,54 @@ export default function ProfilePage() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (!session) {
-          router.push("/")
-          return
-        }
-        setUser(session.user)
+        setUser(session?.user || null)
       }
     )
 
     return () => subscription.unsubscribe()
-  }, [router])
+  }, [])
 
-  // Fetch profile data when user changes
+  // Fetch profile data when user changes or userId changes
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) return
-
       try {
         setIsLoading(true)
-        const response = await fetch("/api/profile")
-        if (response.ok) {
-          const profileData = await response.json()
-          setProfile(profileData)
+        setError(null)
+        
+        const url = userId ? `/api/profile?userId=${userId}` : '/api/profile'
+        const response = await fetch(url)
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError("Profile not found")
+          } else {
+            throw new Error("Failed to fetch profile")
+          }
+          return
+        }
+
+        const profileData = await response.json()
+        setProfile(profileData)
+        
+        // Only set edit form if it's the user's own profile
+        if (!userId || userId === user?.id) {
           setEditForm({
             username: profileData.username || "",
             bio: profileData.bio || "",
             favorite_game: profileData.favorite_game || "",
             avatar_url: profileData.avatar_url || "",
           })
-        } else {
-          throw new Error("Failed to fetch profile")
         }
       } catch (error) {
         console.error("Error fetching profile:", error)
+        setError("Error loading profile")
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchProfile()
-  }, [user])
+  }, [user, userId])
 
   const handleSave = async () => {
     if (!user) return
@@ -107,15 +111,22 @@ export default function ProfilePage() {
         setProfile(updatedProfile)
         setIsEditing(false)
       } else {
-        console.error("Failed to update profile")
+        const errorData = await response.json()
+        if (response.status === 429) {
+          setError(errorData.error || "Username can only be changed every 7 days")
+        } else {
+          setError("Failed to update profile")
+        }
       }
     } catch (error) {
       console.error("Error updating profile:", error)
+      setError("Error updating profile")
     } finally {
       setIsSaving(false)
     }
   }
 
+  const isOwnProfile = !userId || userId === user?.id
   const avatarUrl = profile?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg?seed=" + profile?.username
 
   if (isLoading) {
@@ -124,6 +135,20 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
           <p className="text-black">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-2xl font-bold text-black">Error</h2>
+          <p className="text-black">{error}</p>
+          <Link href="/explore" className="text-blue-600 hover:underline">
+            Return to Games
+          </Link>
         </div>
       </div>
     )
@@ -154,8 +179,10 @@ export default function ProfilePage() {
           >
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-black">Profile</h2>
-                {!isEditing ? (
+                <h2 className="text-3xl font-bold text-black">
+                  {isOwnProfile ? "Profile" : `${profile?.username}'s Profile`}
+                </h2>
+                {isOwnProfile && !isEditing ? (
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -164,7 +191,7 @@ export default function ProfilePage() {
                   >
                     <FaEdit /> Edit Profile
                   </motion.button>
-                ) : (
+                ) : isOwnProfile && isEditing ? (
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -183,7 +210,7 @@ export default function ProfilePage() {
                       </>
                     )}
                   </motion.button>
-                )}
+                ) : null}
               </div>
 
               <div className="text-black flex flex-col md:flex-row gap-8">
@@ -203,7 +230,7 @@ export default function ProfilePage() {
                 <div className="flex-grow space-y-4">
                   <div>
                     <label className="text-sm text-gray-500 mb-1 block">Username</label>
-                    {isEditing ? (
+                    {isOwnProfile && isEditing ? (
                       <input
                         type="text"
                         value={editForm.username}
@@ -218,7 +245,7 @@ export default function ProfilePage() {
 
                   <div>
                     <label className="text-sm text-gray-500 mb-1 block">Bio</label>
-                    {isEditing ? (
+                    {isOwnProfile && isEditing ? (
                       <textarea
                         value={editForm.bio || ""}
                         onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
@@ -233,7 +260,7 @@ export default function ProfilePage() {
 
                   <div>
                     <label className="text-sm text-gray-500 mb-1 block">Favorite Game</label>
-                    {isEditing ? (
+                    {isOwnProfile && isEditing ? (
                       <input
                         type="text"
                         value={editForm.favorite_game || ""}
