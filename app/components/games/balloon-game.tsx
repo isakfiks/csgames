@@ -63,11 +63,10 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
   const [highScore, setHighScore] = useState(0)
   const [playerStats, setPlayerStats] = useState<Record<string, PlayerStats>>({})
   const [matchHistory, setMatchHistory] = useState<MatchHistory[]>([])
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const gameStateIdRef = useRef<string | null>(null)
 
-  const retryRequest = async (fn: () => Promise<any>, maxRetries = 3, delayMs = 500) => {
-    let lastError
+  const retryRequest = async <T,>(fn: () => Promise<T>, maxRetries = 3, delayMs = 500): Promise<T> => {
+    let lastError: unknown
     for (let i = 0; i < maxRetries; i++) {
       try {
         const result = await fn()
@@ -326,7 +325,7 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
         if (statsError) throw statsError
 
         const statsMap: Record<string, PlayerStats> = {}
-        stats.forEach((stat: any) => {
+        stats.forEach((stat: { player_id: string; total_games: number; wins: number; highest_score: number; average_score: number }) => {
           statsMap[stat.player_id] = {
             total_games: stat.total_games,
             wins: stat.wins,
@@ -353,23 +352,6 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
 
     loadPlayerStats()
   }, [players, supabase])
-
-  const retryRequest2 = async (fn: () => Promise<any>, maxRetries = 3, delayMs = 500) => {
-    let lastError
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const result = await fn()
-        return result
-      } catch (err) {
-        console.log(`Request attempt ${i + 1} failed:`, err)
-        lastError = err
-        if (i < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs))
-        }
-      }
-    }
-    throw lastError
-  }
 
   const handlePump = useCallback(async () => {
     if (!gameState || !currentUser || gameState.is_popped || gameState.current_player !== currentUser.id) return
@@ -484,7 +466,6 @@ export default function BalloonGame({ lobbyId, currentUser }: BalloonGameProps) 
   if (error || !gameState) return <GameError error={error || "Game not found"} />
 
   const isMyTurn = gameState.current_player === currentUser?.id
-  const opponent = players.find(p => p.id !== currentUser?.id)
 
   return (
     <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
