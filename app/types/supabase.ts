@@ -114,6 +114,48 @@ export interface Database {
             referencedColumns: ["id"]
           }
         ]
+      },
+      
+      // Add the user_profiles table
+      user_profiles: {
+        Row: {
+          id: string
+          username: string
+          avatar_url: string | null
+          bio: string | null
+          favorite_game: string | null
+          hours_played: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          username: string
+          avatar_url?: string | null
+          bio?: string | null
+          favorite_game?: string | null
+          hours_played?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          username?: string
+          avatar_url?: string | null
+          bio?: string | null
+          favorite_game?: string | null
+          hours_played?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       
       // Add other tables here as needed
@@ -142,3 +184,4 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> = Databas
 export type InviteCode = Tables<'invite_codes'>
 export type Lobby = Tables<'lobbies'>
 export type Message = Tables<'messages'>
+export type UserProfile = Tables<'user_profiles'>
