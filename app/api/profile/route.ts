@@ -43,10 +43,9 @@ export async function GET(request: Request) {
         hours_played: profile.hours_played,
       }
       return NextResponse.json(publicProfile)
-    }
-
-    return NextResponse.json(profile)
+    }    return NextResponse.json(profile)
     } catch (err) {
+    console.error('GET Profile error:', err)
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -127,10 +126,9 @@ export async function PUT(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json(data)
+    }    return NextResponse.json(data)
     } catch (err) {
+    console.error('PUT Profile error:', err)
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
