@@ -2,17 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { FaUser, FaEdit, FaGamepad, FaClock, FaSave, FaArrowLeft } from "react-icons/fa"
+import { FaEdit, FaGamepad, FaClock, FaSave, FaArrowLeft } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
 import type { UserProfile } from "@/app/types/supabase"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 
 const supabase = createClientComponentClient()
 
 export default function ProfilePage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const userId = searchParams.get('userId')
   const [user, setUser] = useState<User | null>(null)

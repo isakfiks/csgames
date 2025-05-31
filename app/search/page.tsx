@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { FaArrowLeft, FaUser, FaClock, FaGamepad, FaSearch } from "react-icons/fa"
+import { FaArrowLeft, FaClock, FaGamepad, FaSearch } from "react-icons/fa"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 

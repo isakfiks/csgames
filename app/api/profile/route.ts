@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(profile)
-  } catch (error) {
+    } catch (err) {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -130,7 +130,7 @@ export async function PUT(request: Request) {
     }
 
     return NextResponse.json(data)
-  } catch (error) {
+    } catch (err) {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

@@ -16,9 +16,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Search query is required' }, { status: 400 })
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    await supabase.auth.getSession()
 
     const offset = page * limit
 
