@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { FaArrowLeft, FaPlus, FaTrophy, FaHandshake, FaLightbulb } from "react-icons/fa"
+import { FaArrowLeft, FaPlus, FaTrophy, FaHandshake, FaLightbulb, FaSearch } from "react-icons/fa"
 import { createClientComponentClient, type User } from "@supabase/auth-helpers-nextjs"
 import UsernameModal from "@/comps/set-username"
 import SuggestionModal from "@/comps/SuggestionModal"
 import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
 
 type UserProfile = {
   id: string
@@ -118,6 +119,7 @@ export default function ExplorePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([])
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([])
+  const router = useRouter()
 
   // Filter games based on search
   const filteredGames = currentGames.filter((game) => game.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -575,7 +577,32 @@ export default function ExplorePage() {
             animate={{ scale: 1 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
           >
-            <h1 className="text-2xl font-bold text-black">CSGames</h1>
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault()
+                const searchInput = e.currentTarget.querySelector('input')
+                if (searchInput && searchInput.value.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchInput.value.trim())}`)
+                }
+              }}
+              className="relative flex items-center"
+            >
+              <input
+                type="text"
+                placeholder="Search users..."
+                className="text-black placeholder-gray-400 w-48 px-4 py-2 pr-10 text-sm rounded-lg border-2 border-black focus:outline-none focus:ring-2 focus:ring-black"
+                aria-label="Search users"
+              />
+              <button
+                type="submit"
+                className="absolute right-3 text-gray-500 hover:text-black"
+                aria-label="Search"
+                title="Search"
+              >
+                <FaSearch size={16} />
+              </button>
+            </form>
+            <h1 className="text-2xl font-bold text-black ml-4">CSGames</h1>
             <span className="text-black text-2xl">.dev</span>
           </motion.div>
           <div className="flex space-x-2">
