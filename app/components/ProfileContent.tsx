@@ -256,12 +256,12 @@ export default function ProfileContent() {
 
                     <div className="flex items-center mb-3">
                       <FaClock className="text-gray-500 mr-2" />
-                      <span className="text-black">{profile?.playtime || 0} minutes played</span>
+                      <span className="text-black">{profile?.hours_played || 0} minutes played</span>
                     </div>
 
                     <div className="flex items-center">
                       <FaGamepad className="text-gray-500 mr-2" />
-                      <span className="text-black">{profile?.games_played || 0} games played</span>
+                      <span className="text-black">0 games played</span>
                     </div>
                   </div>
                 </div>
