@@ -73,8 +73,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showAIOption, setShowAIOption] = useState(false);
-  const [isSettingUpAI, setIsSettingUpAI] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -156,7 +154,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
               gameStateData.player1 === session.user.id &&
               !gameStateData.ai_opponent
             ) {
-              setShowAIOption(true);
+
             }
           }
 
@@ -346,47 +344,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     }
   }
 
-  async function setupAIOpponent() {
-    if (!gameState || !currentUser) return;
-
-    setIsSettingUpAI(true);
-
-    try {
-      // Set up the AI opponent
-      const { error } = await supabase.rpc("setup_ai_opponent", {
-        p_lobby_id: resolvedParams.id,
-      });
-
-      if (error) {
-        console.error("Error setting up AI opponent:", error);
-        return;
-      }
-
-      // Redirect to the game page
-      router.push(`/game/${resolvedParams.id}`);
-    } catch (err) {
-      console.error("Error in setupAIOpponent:", err);
-    } finally {
-      setIsSettingUpAI(false);
-    }
-  }
-
-  function waitForHumanOpponent() {
-    if (!gameState) return;
-
-    supabase
-      .from("game_states")
-      .update({ status: "waiting" })
-      .eq("id", gameState.id)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Error updating game state:", error);
-          return;
-        }
-        setShowAIOption(false);
-      });
-  }
-
   function getPlayerName(playerId: string | null | undefined) {
     if (!playerId) return "Waiting for player...";
 
@@ -495,94 +452,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const canJoin = gameState && gameState.player2 === null && !isInGame && !isCreator && gameState.status === "waiting";
   const isGameFull = gameState && gameState.player1 && gameState.player2;
   const isWaiting = gameState && gameState.status === "waiting";
-
-  // If showing AI option, render that instead of the regular lobby
-  if (showAIOption && game?.title === "Tic Tac Toe" && currentUser) {
-    return (
-      <div className="bg-white min-h-screen p-4 sm:p-8 font-[family-name:var(--font-geist-sans)]">
-        <header className="max-w-4xl mx-auto mb-6 sm:mb-8">
-          <div className="flex justify-between items-center">
-            <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
-              <FaArrowLeft className="mr-2" />
-              <span>Back to Games</span>
-            </Link>
-            <div className="flex">
-              <h1 className="text-xl sm:text-2xl font-bold text-black">CSGames</h1>
-              <span className="text-black text-xl sm:text-2xl">.dev</span>
-            </div>
-          </div>
-        </header>
-
-        <main className="text-black max-w-4xl mx-auto">
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold text-black mb-4">Tic Tac Toe</h2>
-
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md mx-auto">
-              <h2 className="text-2xl font-bold text-center mb-6">Choose Your Opponent</h2>
-
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <button
-                  className="p-4 rounded-lg border-2 flex flex-col items-center justify-center hover:bg-gray-50 transition-colors"
-                  onClick={waitForHumanOpponent}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="40"
-                    height="40"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mb-2"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                  </svg>
-                  <span className="font-medium">Human</span>
-                  <span className="text-xs text-gray-500 mt-1">Play against another player</span>
-                </button>
-
-                <button
-                  className="p-4 rounded-lg border-2 flex flex-col items-center justify-center hover:bg-gray-50 transition-colors"
-                  onClick={setupAIOpponent}
-                  disabled={isSettingUpAI}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="40"
-                    height="40"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mb-2"
-                  >
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="9" cy="10" r="2"></circle>
-                    <circle cx="15" cy="10" r="2"></circle>
-                    <path d="M9 16h6"></path>
-                    <path d="m21 3-6 6"></path>
-                  </svg>
-                  <span className="font-medium">AI</span>
-                  <span className="text-xs text-gray-500 mt-1">Play against the computer</span>
-                </button>
-              </div>
-
-              {isSettingUpAI && (
-                <div className="text-center text-gray-600 animate-pulse">Setting up AI opponent...</div>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white min-h-screen p-4 sm:p-8 font-[family-name:var(--font-geist-sans)]">

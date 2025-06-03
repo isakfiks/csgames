@@ -93,11 +93,13 @@ export default function SearchPage() {
               <FaArrowLeft className="mr-2" />
               <span>Back to Games</span>
             </Link>
+            <Link href="/explore">
             <div className="flex">
               <h1 className="text-2xl font-bold text-black">CSGames</h1>
               <span className="text-black text-2xl">.dev</span>
             </div>
-          </div>
+            </Link>
+          </div> 
         </header>
 
         <main>
