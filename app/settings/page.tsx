@@ -12,6 +12,7 @@ const supabase = createClientComponentClient()
 interface Profile {
   id: string
   username: string
+  bio?: string
 }
 
 export default function SettingsPage() {
@@ -20,6 +21,9 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [showUsernameModal, setShowUsernameModal] = useState(false)
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null)
+  const [bio, setBio] = useState("")
+  const [bioSaving, setBioSaving] = useState(false)
+  const [bioError, setBioError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadUserData() {
@@ -52,6 +56,7 @@ export default function SettingsPage() {
         }
 
         setProfile(profileData)
+        setBio(profileData.bio || "")
 
         // Calculate cooldown if username was recently changed
         if (profileData.username_updated_at) {
@@ -78,6 +83,26 @@ export default function SettingsPage() {
 
     loadUserData()
   }, [])
+
+  async function handleBioSave() {
+    setBioSaving(true)
+    setBioError(null)
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bio }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        setBioError(data.error || "Failed to update bio")
+      }
+    } catch {
+      setBioError("Failed to update bio")
+    } finally {
+      setBioSaving(false)
+    }
+  }
 
   async function handleSignOut() {
     try {
@@ -159,6 +184,26 @@ export default function SettingsPage() {
                     <span>You can change your username again in {cooldownRemaining}</span>
                   </div>
                 )}
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Bio</p>
+                <textarea
+                  className="text-black placeholder-gray-300 w-full border border-gray-300 rounded p-2 mb-2"
+                  rows={3}
+                  maxLength={300}
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  placeholder="Tell others about yourself"
+                />
+                <button
+                  onClick={handleBioSave}
+                  disabled={bioSaving}
+                  className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                >
+                  {bioSaving ? "Saving..." : "Save Bio"}
+                </button>
+                {bioError && <div className="text-red-500 text-sm mt-1">{bioError}</div>}
               </div>
             </div>
           </div>

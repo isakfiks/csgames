@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
       }
-      const entry = Array.isArray(data) ? data.find((e: any) => e.id === userId) : null
+      type LeaderboardEntry = { id: string; [key: string]: unknown }
+      const entry = Array.isArray(data) ? (data as LeaderboardEntry[]).find((e) => e.id === userId) : null
       if (!entry) {
         return NextResponse.json({ error: "User not found in leaderboard" }, { status: 404 })
       }

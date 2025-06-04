@@ -104,13 +104,14 @@ export default function ProfileContent() {
           const data = await response.json()
 
           if (Array.isArray(data)) {
-            const entry = data.find((e: any) => e.id === profile.id)
+            type LeaderboardEntry = { id: string; games_played: number; wins: number }
+            const entry = (data as LeaderboardEntry[]).find((e) => e.id === profile.id)
             if (entry) setStats({ games_played: entry.games_played, wins: entry.wins })
           } else if (data && data.id === profile.id) {
             setStats({ games_played: data.games_played, wins: data.wins })
           }
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -154,21 +155,50 @@ export default function ProfileContent() {
     if (gamesPlayed <= 5) return "Rookie"
     if (gamesPlayed <= 15) return "Regular"
     if (gamesPlayed <= 30) return "Veteran"
+    if (gamesPlayed <= 60) return "Pro"
+    if (gamesPlayed <= 100) return "Elite"
+    if (gamesPlayed <= 200) return "Master"
+    if (gamesPlayed <= 400) return "Grandmaster"
     return "Legend"
   }
 
   const isOwnProfile = !userId || userId === user?.id
   const avatarUrl = profile?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg?seed=" + profile?.username
 
-  if (isLoading) {
-    return (
-      <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-black">Loading profile...</p>
+  // Skeletonn
+  const ProfileSkeleton = () => (
+    <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
+      <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
+        <div className="w-full flex flex-col md:flex-row gap-6">
+          <div className="w-full md:w-1/3">
+            <div className="bg-gray-100 p-4 rounded-lg">
+              <div className="w-full h-48 bg-gray-200 animate-pulse rounded-lg mb-4"></div>
+              <div className="h-6 w-32 bg-gray-200 animate-pulse mb-2 rounded"></div>
+              <div className="h-4 w-24 bg-gray-200 animate-pulse mb-4 rounded"></div>
+              <div className="h-4 w-32 bg-gray-200 animate-pulse mb-3 rounded"></div>
+              <div className="h-4 w-32 bg-gray-200 animate-pulse mb-3 rounded"></div>
+              <div className="h-4 w-32 bg-gray-200 animate-pulse mb-3 rounded"></div>
+              <div className="h-4 w-20 bg-gray-200 animate-pulse mb-3 rounded"></div>
+            </div>
+          </div>
+          <div className="w-full md:w-2/3 flex flex-col gap-6">
+            <div className="bg-gray-100 p-4 rounded-lg mb-6">
+              <div className="h-5 w-32 bg-gray-200 animate-pulse mb-2 rounded"></div>
+              <div className="h-4 w-full bg-gray-200 animate-pulse rounded"></div>
+              <div className="h-4 w-3/4 bg-gray-200 animate-pulse rounded mt-2"></div>
+            </div>
+            <div className="bg-gray-100 p-4 rounded-lg">
+              <div className="h-5 w-32 bg-gray-200 animate-pulse mb-2 rounded"></div>
+              <div className="h-4 w-1/2 bg-gray-200 animate-pulse rounded"></div>
+            </div>
+          </div>
         </div>
       </div>
-    )
+    </div>
+  )
+
+  if (isLoading) {
+    return <ProfileSkeleton />
   }
 
   if (error) {
