@@ -119,6 +119,10 @@ export default function ExplorePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeLobbies, setActiveLobbies] = useState<Lobby[]>([])
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([])
+  const [showLobbies, setShowLobbies] = useState(false)
+  const [showAllGames, setShowAllGames] = useState(true)
+  const [lobbiesToShow, setLobbiesToShow] = useState(3)
+  const [gamesToShow, setGamesToShow] = useState(3)
   const router = useRouter()
 
   // Filter games based on search
@@ -631,7 +635,7 @@ export default function ExplorePage() {
       </motion.header>
 
       <motion.div
-        className="max-w-6xl mx-auto mb-6"
+        className="max-w-6xl mx-auto mb-10"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -677,7 +681,7 @@ export default function ExplorePage() {
         transition={{ delay: 0.2 }}
       >
         <motion.div
-          className="mb-6 sm:mb-8"
+          className="mb-10 sm:mb-12"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
@@ -710,25 +714,105 @@ export default function ExplorePage() {
           </motion.div>
         </motion.div>
 
-        {/* Active lobbies section */}
+        {/* Collapsible Active Lobbies section */}
         {activeLobbies.length > 0 && (
           <motion.div
-            className="mb-8 sm:mb-12"
+            className="mb-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
           >
-            <h3 className="text-xl sm:text-2xl font-bold text-black mb-3 sm:mb-4">Active Lobbies</h3>
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-xl sm:text-2xl font-bold text-black">Active Lobbies</h3>
+              <button
+                className="text-sm px-3 py-1 border border-black rounded hover:bg-gray-100 transition"
+                onClick={() => setShowLobbies((v) => !v)}
+              >
+                {showLobbies ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showLobbies && (
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ staggerChildren: 0.1 }}
+              >
+                {activeLobbies.slice(0, lobbiesToShow).map((lobby, index) => (
+                  <motion.div
+                    key={lobby.id}
+                    className="border-2 border-black rounded-lg overflow-hidden"
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{
+                      delay: index * 0.05,
+                      type: "spring",
+                      damping: 20,
+                      stiffness: 200,
+                    }}
+                    whileHover={{
+                      y: -5,
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                    }}
+                  >
+                    <div className="bg-gray-100 p-3 border-b-2 border-black">
+                      <h4 className="font-bold">{lobby.gameTitle}</h4>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-gray-700 mb-2">Created by: {lobby.player1}</p>
+                      <p className="text-sm text-gray-500 mb-4">
+                        {lobby.needsPlayer ? "Waiting for opponent" : "Ready to start"}
+                      </p>
+                      <Link href={`/lobby/${lobby.id}`}>
+                        <motion.button
+                          className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                          whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                        >
+                          {lobby.needsPlayer ? "Join Game" : "View Lobby"}
+                        </motion.button>
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+            {showLobbies && activeLobbies.length > lobbiesToShow && (
+              <div className="flex justify-center mt-4">
+                <button
+                  className="px-4 py-2 border border-black rounded hover:bg-gray-100 transition"
+                  onClick={() => setLobbiesToShow((n) => n + 3)}
+                >
+                  Show More
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Collapsible All Games section */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-xl sm:text-2xl font-bold text-black">All Games</h3>
+            <button
+              className="text-sm px-3 py-1 border border-black rounded hover:bg-gray-100 transition"
+              onClick={() => setShowAllGames((v) => !v)}
+            >
+              {showAllGames ? "Hide" : "Show"}
+            </button>
+          </div>
+          {showAllGames && (
             <motion.div
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ staggerChildren: 0.1 }}
             >
-              {activeLobbies.map((lobby, index) => (
+              {filteredGames.map((game, index) => (
                 <motion.div
-                  key={lobby.id}
-                  className="border-2 border-black rounded-lg overflow-hidden"
+                  key={game.id}
+                  className="border-2 border-black rounded-lg overflow-hidden flex flex-col"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{
@@ -742,82 +826,35 @@ export default function ExplorePage() {
                     boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
                   }}
                 >
-                  <div className="bg-gray-100 p-3 border-b-2 border-black">
-                    <h4 className="font-bold">{lobby.gameTitle}</h4>
+                  <div className="relative w-full pt-[56.25%]">
+                    <img
+                      src={game.image || "/placeholder.svg"}
+                      alt={game.title}
+                      className="absolute top-0 left-0 w-full h-full object-cover"
+                    />
                   </div>
-                  <div className="p-4">
-                    <p className="text-gray-700 mb-2">Created by: {lobby.player1}</p>
-                    <p className="text-sm text-gray-500 mb-4">
-                      {lobby.needsPlayer ? "Waiting for opponent" : "Ready to start"}
-                    </p>
-                    <Link href={`/lobby/${lobby.id}`}>
+                  <div className="p-3 sm:p-4 flex-grow flex flex-col">
+                    <h3 className="text-lg sm:text-xl font-bold text-black">{game.title}</h3>
+                    <p className="text-sm sm:text-base text-gray-700 mb-2 min-h-[40px]">{game.description}</p>
+                    <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">{game.players}</p>
+                    <div className="mt-auto">
                       <motion.button
-                        className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg"
+                        onClick={() => createLobby(game.id)}
+                        className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg text-sm sm:text-base"
                         whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ type: "spring", stiffness: 400, damping: 17 }}
                       >
-                        {lobby.needsPlayer ? "Join Game" : "View Lobby"}
+                        <FaPlus className="mr-2" />
+                        Create Lobby
                       </motion.button>
-                    </Link>
+                    </div>
                   </div>
                 </motion.div>
               ))}
             </motion.div>
-          </motion.div>
-        )}
-
-        <h3 className="text-xl sm:text-2xl font-bold text-black mb-3 sm:mb-4">All Games</h3>
-        <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ staggerChildren: 0.1 }}
-        >
-          {filteredGames.map((game, index) => (
-            <motion.div
-              key={game.id}
-              className="border-2 border-black rounded-lg overflow-hidden flex flex-col"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{
-                delay: index * 0.05,
-                type: "spring",
-                damping: 20,
-                stiffness: 200,
-              }}
-              whileHover={{
-                y: -5,
-                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              }}
-            >
-              <div className="relative w-full pt-[56.25%]">
-                <img
-                  src={game.image || "/placeholder.svg"}
-                  alt={game.title}
-                  className="absolute top-0 left-0 w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-3 sm:p-4 flex-grow flex flex-col">
-                <h3 className="text-lg sm:text-xl font-bold text-black">{game.title}</h3>
-                <p className="text-sm sm:text-base text-gray-700 mb-2 min-h-[40px]">{game.description}</p>
-                <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">{game.players}</p>
-                <div className="mt-auto">
-                  <motion.button
-                    onClick={() => createLobby(game.id)}
-                    className="w-full flex items-center justify-center bg-black text-white p-2 rounded-lg text-sm sm:text-base"
-                    whileHover={{ scale: 1.02, backgroundColor: "#1f2937" }}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  >
-                    <FaPlus className="mr-2" />
-                    Create Lobby
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
+          )}
+        </div>
       </motion.main>
     </motion.div>
   )
