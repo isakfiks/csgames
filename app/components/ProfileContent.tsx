@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { FaEdit, FaGamepad, FaClock, FaSave, FaArrowLeft } from "react-icons/fa"
+import { FaEdit, FaGamepad, FaClock, FaSave, FaArrowLeft, FaTrophy } from "react-icons/fa"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/auth-helpers-nextjs"
 import type { UserProfile } from "@/app/types/supabase"
@@ -26,6 +26,7 @@ export default function ProfileContent() {
     favorite_game: "",
     avatar_url: "",
   })
+  const [stats, setStats] = useState<{ games_played: number; wins: number } | null>(null)
 
   // Check for user session
   useEffect(() => {
@@ -93,6 +94,29 @@ export default function ProfileContent() {
     fetchProfile()
   }, [user, userId])
 
+  // Fetch games played and wins
+  useEffect(() => {
+    async function fetchStats() {
+      if (!profile?.id) return
+      try {
+        const response = await fetch(`/api/leaderboard?userId=${profile.id}`)
+        if (response.ok) {
+          const data = await response.json()
+
+          if (Array.isArray(data)) {
+            const entry = data.find((e: any) => e.id === profile.id)
+            if (entry) setStats({ games_played: entry.games_played, wins: entry.wins })
+          } else if (data && data.id === profile.id) {
+            setStats({ games_played: data.games_played, wins: data.wins })
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (profile?.id) fetchStats()
+  }, [profile])
+
   const handleSave = async () => {
     if (!user) return
     setIsSaving(true)
@@ -123,6 +147,14 @@ export default function ProfileContent() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const getRank = (gamesPlayed: number) => {
+    if (gamesPlayed <= 1) return "Newgen"
+    if (gamesPlayed <= 5) return "Rookie"
+    if (gamesPlayed <= 15) return "Regular"
+    if (gamesPlayed <= 30) return "Veteran"
+    return "Legend"
   }
 
   const isOwnProfile = !userId || userId === user?.id
@@ -259,9 +291,18 @@ export default function ProfileContent() {
                       <span className="text-black">{profile?.hours_played || 0} minutes played</span>
                     </div>
 
-                    <div className="flex items-center">
+                    <div className="flex items-center mb-3">
                       <FaGamepad className="text-gray-500 mr-2" />
-                      <span className="text-black">0 games played</span>
+                      <span className="text-black">{stats ? stats.games_played : 0} games played</span>
+                    </div>
+                    <div className="flex items-center mb-3">
+                      <span className="text-xs bg-black text-white rounded px-2 py-1 mr-2">{getRank(stats ? stats.games_played : 0)}</span>
+                      <span className="text-gray-700">Rank</span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <FaTrophy className="text-yellow-500 mr-2" />
+                      <span className="text-black">{stats ? stats.wins : 0} wins</span>
                     </div>
                   </div>
                 </div>

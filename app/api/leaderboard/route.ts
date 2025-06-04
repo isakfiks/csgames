@@ -22,6 +22,21 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const timeframe = searchParams.get("timeframe") || "all"
+    const userId = searchParams.get("userId")
+
+    if (userId) {
+      // Fetch stats for a single usr
+      const supabase = createRouteHandlerClient({ cookies })
+      const { data, error } = await supabase.rpc("get_leaderboard", { time_filter: timeframe })
+      if (error) {
+        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
+      }
+      const entry = Array.isArray(data) ? data.find((e: any) => e.id === userId) : null
+      if (!entry) {
+        return NextResponse.json({ error: "User not found in leaderboard" }, { status: 404 })
+      }
+      return NextResponse.json(entry)
+    }
 
     // Check if we have valid cached data
     const cacheEntry = cache[timeframe]
