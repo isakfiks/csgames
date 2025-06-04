@@ -122,7 +122,6 @@ export default function ExplorePage() {
   const [showLobbies, setShowLobbies] = useState(false)
   const [showAllGames, setShowAllGames] = useState(true)
   const [lobbiesToShow, setLobbiesToShow] = useState(3)
-  const [gamesToShow, setGamesToShow] = useState(3)
   const router = useRouter()
 
   // Filter games based on search
