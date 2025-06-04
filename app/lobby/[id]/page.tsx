@@ -74,6 +74,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [hasShownShareModal, setHasShownShareModal] = useState(false);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const subscriptionRef = useRef<RealtimeChannel | null>(null);
@@ -109,6 +111,12 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
         if (lobbyError) throw lobbyError;
         if (isActive) setLobby(lobbyData);
+
+        // Show share modal if creator and not shown yet
+        if (lobbyData?.created_by === session.user.id && !hasShownShareModal) {
+          setShowShareModal(true);
+          setHasShownShareModal(true);
+        }
 
         // Fetch game data
         let gameData: Game | null = null;
@@ -351,6 +359,13 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     return player?.username || "Unknown player";
   }
 
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/join/${resolvedParams.id}` : '';
+  const handleCopy = async () => {
+    if (navigator?.clipboard) {
+      await navigator.clipboard.writeText(shareUrl);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white min-h-screen p-8 flex items-center justify-center font-[family-name:var(--font-geist-sans)]">
@@ -455,6 +470,54 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="bg-white min-h-screen p-4 sm:p-8 font-[family-name:var(--font-geist-sans)]">
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="relative bg-white border-2 border-black rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
+            <button
+              className="absolute top-3 right-3 text-black hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center transition-colors border border-black shadow-sm"
+              onClick={() => setShowShareModal(false)}
+              aria-label="Close"
+              type="button"
+            >
+              <span className="text-2xl leading-none">×</span>
+            </button>
+            <div className="flex flex-col items-center">
+              <div className="mb-4">
+                <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center shadow-lg border-2 border-black">
+                  <FaGamepad className="text-white text-2xl" />
+                </div>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-black">Share Your Lobby</h2>
+              <p className="mb-4 text-gray-800 text-center text-base sm:text-lg">Send this link to a friend to invite them to your game lobby!</p>
+              <div className="flex items-center bg-white border-2 border-black rounded-lg px-3 py-2 mb-4 w-full shadow-inner">
+                <input
+                  type="text"
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 bg-transparent outline-none text-black text-sm sm:text-base font-mono select-all"
+                  onFocus={e => e.target.select()}
+                />
+                <button
+                  onClick={handleCopy}
+                  className="ml-2 px-4 py-2 bg-black text-white rounded-lg font-semibold border-2 border-black hover:bg-gray-900 transition-all shadow"
+                  type="button"
+                >
+                  Copy
+                </button>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="w-full bg-black text-white px-6 py-3 rounded-xl mt-2 border-2 border-black hover:bg-gray-900 transition-all font-semibold shadow-md"
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="max-w-4xl mx-auto mb-6 sm:mb-8">
         <div className="flex justify-between items-center">
           <Link href="/explore" className="flex items-center text-black text-sm sm:text-base">
@@ -651,7 +714,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
               <div className="flex gap-3 w-full sm:w-auto">
                 {isInGame && gameState?.status === "playing" && (
                   <Link href={`/game/${resolvedParams.id}`} className="w-full sm:w-auto">
-                    <button className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg flex items-center justify-center hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md">
+                    <button className="w-full sm:w-auto bg-black text-white px-6 py-3 rounded-lg flex items-center justify-center border-2 border-black hover:bg-gray-900 transition-all duration-300 transform hover:scale-105 shadow-md">
                       <FaPlay className="mr-2" />
                       Go to Game
                     </button>
