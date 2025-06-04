@@ -1,53 +1,244 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { motion } from "framer-motion"
 
 const WORD_LENGTH = 5
 const MAX_GUESSES = 6
 const ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNM".split("")
 
+// Overly simplified on-page wordlist, purely for testing rn
+const VALID_WORDS = ["HACKR","HCLUB", "CRABS"]
+
+type LetterState = "correct" | "present" | "absent" | "unused"
+
 export default function WordleGame() {
-  const [guesses] = useState<string[]>(Array(MAX_GUESSES).fill(""))
-  const [currentGuess] = useState("")
+  const [answer] = useState(() => VALID_WORDS[Math.floor(Math.random() * VALID_WORDS.length)])
+  const [guesses, setGuesses] = useState<string[]>(Array(MAX_GUESSES).fill(""))
+  const [currentGuess, setCurrentGuess] = useState("")
+  const [currentRow, setCurrentRow] = useState(0)
+  const [keyStates, setKeyStates] = useState<{ [key: string]: LetterState }>(
+    Object.fromEntries(ALPHABET.map(letter => [letter, "unused"]))
+  )
+  const [shake, setShake] = useState(false)
+  const [gameOver, setGameOver] = useState(false)
+
+  const checkGuess = useCallback((guess: string): LetterState[] => {
+    const result: LetterState[] = Array(WORD_LENGTH).fill("absent")
+    const answerArray = answer.split("")
+    const guessArray = guess.split("")
+    
+    // Mark correct letters
+    guessArray.forEach((letter, i) => {
+      if (letter === answerArray[i]) {
+        result[i] = "correct"
+        answerArray[i] = "#"
+      }
+    })
+    
+    guessArray.forEach((letter, i) => {
+      if (result[i] === "absent") {
+        const index = answerArray.indexOf(letter)
+        if (index !== -1) {
+          result[i] = "present"
+          answerArray[index] = "#"
+        }
+      }
+    })
+    
+    return result
+  }, [answer])
+
+  const updateKeyStates = useCallback((guess: string, states: LetterState[]) => {
+    setKeyStates(prev => {
+      const newStates = { ...prev }
+      guess.split("").forEach((letter, i) => {
+        const currentState = newStates[letter]
+        const newState = states[i]
+        if (newState === "correct") {
+          newStates[letter] = "correct"
+        } else if (newState === "present" && currentState !== "correct") {
+          newStates[letter] = "present"
+        } else if (newState === "absent" && currentState === "unused") {
+          newStates[letter] = "absent"
+        }
+      })
+      return newStates
+    })
+  }, [])
+
+  const submitGuess = useCallback(() => {
+    if (currentGuess.length !== WORD_LENGTH) return
+    if (!VALID_WORDS.includes(currentGuess)) {
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+      return
+    }
+
+    const newGuesses = [...guesses]
+    newGuesses[currentRow] = currentGuess
+    setGuesses(newGuesses)
+
+    const states = checkGuess(currentGuess)
+    updateKeyStates(currentGuess, states)
+
+    if (currentGuess === answer || currentRow === MAX_GUESSES - 1) {
+      setGameOver(true)
+    } else {
+      setCurrentRow(prev => prev + 1)
+      setCurrentGuess("")
+    }
+  }, [currentGuess, currentRow, guesses, answer, checkGuess, updateKeyStates])
+
+  const handleKeyInput = useCallback((key: string) => {
+    if (gameOver) return
+    
+    if (key === "ENTER") {
+      submitGuess()
+    } else if (key === "BACKSPACE" || key === "DEL") {
+      setCurrentGuess(prev => prev.slice(0, -1))
+    } else if (ALPHABET.includes(key) && currentGuess.length < WORD_LENGTH) {
+      setCurrentGuess(prev => prev + key)
+    }
+  }, [currentGuess, gameOver, submitGuess])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toUpperCase()
+      if (key === "ENTER" || key === "BACKSPACE" || ALPHABET.includes(key)) {
+        handleKeyInput(key)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleKeyInput])
+
+  const getLetterStateClass = (letter: string, state: LetterState) => {
+    const baseClass = "w-10 h-12 rounded font-bold text-lg transition-colors duration-300"
+    switch (state) {
+      case "correct":
+        return `${baseClass} bg-green-500 text-white hover:bg-green-600`
+      case "present":
+        return `${baseClass} bg-yellow-500 text-white hover:bg-yellow-600`
+      case "absent":
+        return `${baseClass} bg-gray-500 text-white hover:bg-gray-600`
+      default:
+        return `${baseClass} bg-gray-200 text-black hover:bg-gray-300`
+    }
+  }
+
+  const getBoxStyle = (rowIndex: number, colIndex: number) => {
+    const guess = guesses[rowIndex]
+    const letter = guess?.[colIndex] || ""
+    const isCurrentRow = rowIndex === currentRow
+    const isCurrentGuessLetter = isCurrentRow && currentGuess[colIndex]
+
+    if (!letter && !isCurrentGuessLetter) {
+      return "border-2 border-gray-300 bg-gray-50"
+    }
+
+    if (isCurrentRow) {
+      return "border-2 border-gray-400 bg-gray-50"
+    }
+
+    const state = checkGuess(guess)[colIndex]
+    switch (state) {
+      case "correct":
+        return "bg-green-500 border-green-500 text-white"
+      case "present":
+        return "bg-yellow-500 border-yellow-500 text-white"
+      case "absent":
+        return "bg-gray-500 border-gray-500 text-white"
+      default:
+        return "border-2 border-gray-300 bg-gray-50"
+    }
+  }
 
   return (
-    <div className="bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
+    <div className="text-black bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
       <header className="max-w-2xl mx-auto mb-6 flex flex-col items-center">
         <h1 className="text-3xl md:text-4xl font-bold text-black mb-2">Corruptle</h1>
         <span className="text-gray-500 text-sm">Guess the {WORD_LENGTH}-letter word!</span>
       </header>
+
       <main className="flex flex-col items-center">
         <div className="grid grid-rows-6 gap-2 mb-8">
           {guesses.map((guess, rowIdx) => (
-            <div key={rowIdx} className="grid grid-cols-5 gap-2">
+            <motion.div 
+              key={rowIdx}
+              className="grid grid-cols-5 gap-2"
+              animate={shake && rowIdx === currentRow ? {
+                x: [0, -10, 10, -10, 10, 0],
+                transition: { duration: 0.5 }
+              } : {}}
+            >
               {Array(WORD_LENGTH).fill(0).map((_, colIdx) => (
                 <div
                   key={colIdx}
-                  className="w-12 h-12 md:w-14 md:h-14 border-2 border-gray-300 rounded flex items-center justify-center text-2xl font-bold bg-gray-50 text-black"
+                  className={`w-12 h-12 md:w-14 md:h-14 rounded flex items-center justify-center text-2xl font-bold transition-all duration-300 ${getBoxStyle(rowIdx, colIdx)}`}
                 >
-                  {guess[colIdx] || ""}
+                  {rowIdx === currentRow ? currentGuess[colIdx] || "" : guess[colIdx] || ""}
                 </div>
               ))}
-            </div>
+            </motion.div>
           ))}
         </div>
+
+        {gameOver && (
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold mb-2">
+              {guesses[currentRow] === answer ? "Congratulations! 🎉" : "Game Over!"}
+            </h2>
+            <p className="text-gray-600">The word was: {answer}</p>
+          </div>
+        )}
+
         <div className="flex flex-col items-center space-y-2">
           <div className="flex space-x-1">
-            {ALPHABET.slice(0,10).map(l => (
-              <button key={l} className="w-10 h-12 bg-gray-200 rounded font-bold text-lg text-black hover:bg-gray-300">{l}</button>
+            {ALPHABET.slice(0,10).map(letter => (
+              <button
+                key={letter}
+                onClick={() => handleKeyInput(letter)}
+                className={getLetterStateClass(letter, keyStates[letter])}
+              >
+                {letter}
+              </button>
             ))}
           </div>
           <div className="flex space-x-1">
-            {ALPHABET.slice(10,19).map(l => (
-              <button key={l} className="w-10 h-12 bg-gray-200 rounded font-bold text-lg text-black hover:bg-gray-300">{l}</button>
+            {ALPHABET.slice(10,19).map(letter => (
+              <button
+                key={letter}
+                onClick={() => handleKeyInput(letter)}
+                className={getLetterStateClass(letter, keyStates[letter])}
+              >
+                {letter}
+              </button>
             ))}
           </div>
           <div className="flex space-x-1">
-            <button className="w-16 h-12 bg-gray-300 rounded font-bold text-black">Enter</button>
-            {ALPHABET.slice(19).map(l => (
-              <button key={l} className="w-10 h-12 bg-gray-200 rounded font-bold text-lg text-black hover:bg-gray-300">{l}</button>
+            <button 
+              onClick={() => handleKeyInput("ENTER")}
+              className="w-16 h-12 bg-gray-300 rounded font-bold text-black hover:bg-gray-400"
+            >
+              Enter
+            </button>
+            {ALPHABET.slice(19).map(letter => (
+              <button
+                key={letter}
+                onClick={() => handleKeyInput(letter)}
+                className={getLetterStateClass(letter, keyStates[letter])}
+              >
+                {letter}
+              </button>
             ))}
-            <button className="w-16 h-12 bg-gray-300 rounded font-bold text-black">Del</button>
+            <button 
+              onClick={() => handleKeyInput("DEL")}
+              className="w-16 h-12 bg-gray-300 rounded font-bold text-black hover:bg-gray-400"
+            >
+              Del
+            </button>
           </div>
         </div>
       </main>
