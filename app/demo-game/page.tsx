@@ -1,10 +1,7 @@
-import BalloonGame from "../components/games/balloon-game"
+import WordleGame from "../components/games/wordle-game"
 
 export default function BalloonDemo() {
   return (
-    <BalloonGame 
-      lobbyId="demo" 
-      currentUser={null}
-    />
+    <WordleGame />
   )
 }
