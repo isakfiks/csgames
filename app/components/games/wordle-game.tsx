@@ -1,27 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
+import confetti from 'canvas-confetti'
 
 const WORD_LENGTH = 5
 const MAX_GUESSES = 6
 const ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNM".split("")
 
 type LetterState = "correct" | "present" | "absent" | "unused"
-
-interface GameState {
-  lastPlayedWord: string
-  date: string
-  guesses: string[]
-  currentRow: number
-  keyStates: { [key: string]: LetterState }
-  gameOver: boolean
-}
-
-interface WinState {
-  date: string
-  word: string
-}
 
 export default function WordleGame() {
   const [answer, setAnswer] = useState<string>("")
@@ -35,6 +22,54 @@ export default function WordleGame() {
   )
   const [shake, setShake] = useState(false)
   const [gameOver, setGameOver] = useState(false)
+
+  // Save wins to track daily progress
+  const saveWin = useCallback(() => {
+    localStorage.setItem('wordleWins', JSON.stringify({
+      date: new Date().toDateString(),
+      word: answer
+    }))
+  }, [answer])
+
+  // Celebrate win with confetti and sound
+  const celebrateWin = useCallback(() => {
+    // Play win sound
+    const audio = new Audio('/sounds/win.wav')
+    audio.play()
+
+    // Fire confetti
+    const duration = 3000
+    const animationEnd = Date.now() + duration
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 }
+
+    const randomInRange = (min: number, max: number) => {
+      return Math.random() * (max - min) + min
+    }
+
+    const interval: any = setInterval(() => {
+      const timeLeft = animationEnd - Date.now()
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval)
+      }
+
+      const particleCount = 50 * (timeLeft / duration)
+      
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+      })
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+      })
+    }, 250)
+
+    return () => clearInterval(interval)
+  }, [])
+
   // Fetch the word when component mounts
   useEffect(() => {
     const fetchWord = async () => {
@@ -88,14 +123,6 @@ export default function WordleGame() {
     }))
   }, [answer, guesses, currentRow, keyStates, gameOver, isLoading])
 
-  // Save wins to track daily progress
-  const saveWin = useCallback(() => {
-    localStorage.setItem('wordleWins', JSON.stringify({
-      date: new Date().toDateString(),
-      word: answer
-    }))
-  }, [answer])
-
   const checkGuess = useCallback((guess: string): LetterState[] => {
     const result: LetterState[] = Array(WORD_LENGTH).fill("absent")
     const answerArray = answer.split("")
@@ -139,6 +166,7 @@ export default function WordleGame() {
       return newStates
     })
   }, [])
+
   const submitGuess = useCallback(async () => {
     if (currentGuess.length !== WORD_LENGTH) return
 
@@ -164,6 +192,7 @@ export default function WordleGame() {
 
     if (currentGuess === answer) {
       setGameOver(true)
+      celebrateWin()
       const savedWins = localStorage.getItem('wordleWins')
       if (!savedWins || JSON.parse(savedWins).date !== new Date().toDateString()) {
         saveWin()
@@ -174,7 +203,7 @@ export default function WordleGame() {
       setCurrentRow(prev => prev + 1)
       setCurrentGuess("")
     }
-  }, [currentGuess, currentRow, guesses, answer, checkGuess, updateKeyStates, saveWin])
+  }, [currentGuess, currentRow, guesses, answer, checkGuess, updateKeyStates, saveWin, celebrateWin])
 
   const handleKeyInput = useCallback((key: string) => {
     if (gameOver) return
@@ -213,33 +242,40 @@ export default function WordleGame() {
         return `${baseClass} bg-gray-200 text-black hover:bg-gray-300`
     }
   }
-
-  const getBoxStyle = (rowIndex: number, colIndex: number) => {
+  const getBoxStyle = (rowIndex: number, colIdx: number) => {
     const guess = guesses[rowIndex]
-    const letter = guess?.[colIndex] || ""
+    const letter = guess?.[colIdx] || ""
     const isCurrentRow = rowIndex === currentRow
-    const isCurrentGuessLetter = isCurrentRow && currentGuess[colIndex]
+    const isCurrentGuessLetter = isCurrentRow && currentGuess[colIdx]
+    const isWinningWord = gameOver && guess === answer
 
+    // If there's no letter and it's not the current row
     if (!letter && !isCurrentGuessLetter) {
       return "border-2 border-gray-300 bg-gray-50"
     }
 
+    // If it's current row
     if (isCurrentRow) {
       return "border-2 border-gray-400 bg-gray-50"
     }
 
-    const state = checkGuess(guess)[colIndex]
-    switch (state) {
-      case "correct":
-        return "bg-green-500 border-green-500 text-white"
-      case "present":
-        return "bg-yellow-500 border-yellow-500 text-white"
-      case "absent":
-        return "bg-gray-500 border-gray-500 text-white"
-      default:
-        return "border-2 border-gray-300 bg-gray-50"
+    // If there's a letter, compute its state
+    if (letter) {
+      const state = checkGuess(guess)[colIdx]
+      const baseStyle = state === "correct" ? "bg-green-500 border-green-500 text-white" :
+                       state === "present" ? "bg-yellow-500 border-yellow-500 text-white" :
+                       state === "absent" ? "bg-gray-500 border-gray-500 text-white" :
+                       "border-2 border-gray-300 bg-gray-50"
+      
+      // Add extra styles for winning word
+      return isWinningWord 
+        ? `${baseStyle} shadow-lg ring-2 ring-green-400` 
+        : baseStyle
     }
+
+    return "border-2 border-gray-300 bg-gray-50"
   }
+
   if (isLoading) {
     return (
       <div className="text-black bg-white min-h-screen p-4 md:p-8 flex items-center justify-center">
@@ -275,25 +311,58 @@ export default function WordleGame() {
               } : {}}
             >
               {Array(WORD_LENGTH).fill(0).map((_, colIdx) => (
-                <div
+                <motion.div
                   key={colIdx}
-                  className={`w-12 h-12 md:w-14 md:h-14 rounded flex items-center justify-center text-2xl font-bold transition-all duration-300 ${getBoxStyle(rowIdx, colIdx)}`}
+                  animate={gameOver && guess === answer ? {
+                    scale: [1, 1.2, 1],
+                    transition: { duration: 0.3, delay: colIdx * 0.1 }
+                  } : {}}
+                  className={`w-12 h-12 md:w-14 md:h-14 rounded flex items-center justify-center text-2xl font-bold ${getBoxStyle(rowIdx, colIdx)}`}
                 >
                   {rowIdx === currentRow ? currentGuess[colIdx] || "" : guess[colIdx] || ""}
-                </div>
+                </motion.div>
               ))}
             </motion.div>
           ))}
-        </div>
-
-        {gameOver && (
-          <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold mb-2">
-              {guesses[currentRow] === answer ? "Congratulations! 🎉" : "Game Over!"}
-            </h2>
-            <p className="text-gray-600">The word was: {answer}</p>
-          </div>
-        )}
+        </div>        <AnimatePresence>
+          {gameOver && (
+            <motion.div 
+              className="mb-6 text-center"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={{ type: "spring", duration: 0.5 }}
+            >
+              <motion.h2 
+                className="text-2xl font-bold mb-3"
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 0.5, times: [0, 0.5, 1] }}
+              >
+                {currentGuess === answer ? (
+                  <>
+                    <span className="text-green-500">Congratulations!</span> 🎉
+                    <motion.div
+                      className="text-lg mt-2"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      You got it in {currentRow + 1} {currentRow === 0 ? 'try' : 'tries'}!
+                    </motion.div>
+                  </>
+                ) : "Game Over!"}
+              </motion.h2>
+              <motion.p 
+                className="text-gray-600 text-lg"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                The word was: <span className="font-bold">{answer}</span>
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex flex-col items-center space-y-2">
           <div className="flex space-x-1">
