@@ -1,6 +1,6 @@
 "use client"
 
-import { use } from "react"
+import { use, useCallback } from "react"
 import { useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
@@ -45,6 +45,8 @@ interface GameState {
   id: string
   lobby_id: string
   ai_opponent?: boolean
+  started_at?: string
+  ended_at?: string
   [key: string]: unknown
 }
 
@@ -59,6 +61,29 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
+
+  const calculateElapsedTime = useCallback(() => {
+    if (!gameState?.started_at) return 0
+    const start = new Date(gameState.started_at).getTime()
+    const end = gameState.ended_at ? new Date(gameState.ended_at).getTime() : Date.now()
+    return Math.floor((end - start) / 1000)
+  }, [gameState?.started_at, gameState?.ended_at])
+
+  useEffect(() => {
+    if (gameState?.started_at && !gameState?.ended_at) {
+      const timer = setInterval(() => {
+        setElapsedTime(calculateElapsedTime())
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [gameState?.started_at, gameState?.ended_at, calculateElapsedTime])
+
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
 
   // Load lobby and game data
   useEffect(() => {
@@ -292,7 +317,11 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
 
   // Render the appropriate game based on game.title and whether it's an AI opp
   return (
-    <>      {game.title === "Balloon Game" && <BalloonGame lobbyId={lobby.id} currentUser={currentUser} />}
+    <div className="relative">
+      <div className="absolute top-4 right-4 bg-black text-white px-3 py-1 rounded-lg font-mono z-10">
+        Time: {formatTime(elapsedTime)}
+      </div>
+      {game.title === "Balloon Game" && <BalloonGame lobbyId={lobby.id} currentUser={currentUser} />}
 
       {game.title === "Connect Four" && <ConnectFourGame lobbyId={lobby.id} currentUser={currentUser} />}
 
@@ -312,6 +341,6 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
       {game.title === "Minesweeper" && <MinesweeperGame lobbyId={lobby.id} currentUser={currentUser} />}
       {game.title === "Battleship" && <BattleshipGame lobbyId={lobby.id} currentUser={currentUser} />}
       {game.title === "Sliding Puzzle" && <SlidingPuzzle lobbyId={lobby.id} currentUser={currentUser} />}
-    </>
+    </div>
   )
 }

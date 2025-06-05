@@ -73,6 +73,11 @@ api_url = "http://127.0.0.1"
 # OpenAI API Key to use for Supabase AI in the Supabase Studio.
 openai_api_key = "env(OPENAI_API_KEY)"
 
+# Configure cron jobs
+[cron.cleanup_inactive_lobbies]
+schedule = "*/5 * * * *"  # Run every 5 minutes
+function = "public.run_periodic_lobby_cleanup"
+
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
 [inbucket]

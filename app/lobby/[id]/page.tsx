@@ -359,7 +359,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     return player?.username || "Unknown player";
   }
 
-  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/join/${resolvedParams.id}` : '';
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/lobby/${resolvedParams.id}` : '';
   const handleCopy = async () => {
     if (navigator?.clipboard) {
       await navigator.clipboard.writeText(shareUrl);
