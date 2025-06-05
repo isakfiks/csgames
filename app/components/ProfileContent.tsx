@@ -27,6 +27,7 @@ export default function ProfileContent() {
     avatar_url: "",
   })
   const [stats, setStats] = useState<{ games_played: number; wins: number } | null>(null)
+  const [totalHours, setTotalHours] = useState<number>(0)
 
   // Check for user session
   useEffect(() => {
@@ -117,6 +118,36 @@ export default function ProfileContent() {
     }
     if (profile?.id) fetchStats()
   }, [profile])
+
+  // Calculate total hours from game states
+  useEffect(() => {
+    const fetchTotalHours = async () => {
+      if (!profile?.id) return
+      try {
+        const { data, error } = await supabase
+          .from("game_states")
+          .select("started_at, ended_at")
+          .or(`player1.eq.${profile.id},player2.eq.${profile.id}`)
+        
+        if (error) throw error
+        
+        if (data) {
+          const totalSeconds = data.reduce((acc, game) => {
+            if (!game.started_at) return acc
+            const start = new Date(game.started_at).getTime()
+            const end = game.ended_at ? new Date(game.ended_at).getTime() : Date.now()
+            return acc + (end - start) / 1000
+          }, 0)
+          
+          setTotalHours(Math.round((totalSeconds / 3600) * 100) / 100) // Round to 2 decimal places
+        }
+      } catch (error) {
+        console.error("Error calculating total hours:", error)
+      }
+    }
+    
+    fetchTotalHours()
+  }, [profile?.id])
 
   const handleSave = async () => {
     if (!user) return
@@ -310,21 +341,20 @@ export default function ProfileContent() {
                       ) : (
                         profile?.username || "Username not set"
                       )}
-                    </h3>
-
-                    <div className="text-gray-700 mb-4">
+                    </h3>                    <div className="text-gray-700 mb-4">
                       Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : "recently"}
                     </div>
 
                     <div className="flex items-center mb-3">
                       <FaClock className="text-gray-500 mr-2" />
-                      <span className="text-black">{profile?.hours_played || 0} minutes played</span>
+                      <span className="text-black">{totalHours} hours played</span>
                     </div>
 
                     <div className="flex items-center mb-3">
                       <FaGamepad className="text-gray-500 mr-2" />
                       <span className="text-black">{stats ? stats.games_played : 0} games played</span>
                     </div>
+
                     <div className="flex items-center mb-3">
                       <span className="text-xs bg-black text-white rounded px-2 py-1 mr-2">{getRank(stats ? stats.games_played : 0)}</span>
                       <span className="text-gray-700">Rank</span>

@@ -12,6 +12,17 @@ interface LeaderboardEntry {
   games_played: number
   win_percentage: number
   rank: number
+  total_time: number // in seconds
+}
+
+function formatPlayTime(seconds: number): string {
+  if (!seconds) return "0h"
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours === 0) {
+    return `${minutes}m`
+  }
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`
 }
 
 export default function LeaderboardPage() {
@@ -99,9 +110,9 @@ export default function LeaderboardPage() {
             <thead className="bg-gray-100 border-b-2 border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded"></div></th>
-                <th className="px-6 py-3 text-left"><div className="h-5 w-24 bg-gray-200 animate-pulse rounded"></div></th>
+                <th className="px-6 py-3 text-left"><div className="h-5 w-24 bg-gray-200 animate-pulse rounded"></div></th>                      <th className="px-6 py-3 text-right"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
                 <th className="px-6 py-3 text-right"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
-                <th className="px-6 py-3 text-right"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
+                <th className="px-6 py-3 text-right"><div className="h-5 w-20 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
                 <th className="px-6 py-3 text-right"><div className="h-5 w-20 bg-gray-200 animate-pulse rounded ml-auto"></div></th>
               </tr>
             </thead>
@@ -113,6 +124,7 @@ export default function LeaderboardPage() {
                   <td className="px-6 py-4"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
                   <td className="px-6 py-4"><div className="h-5 w-10 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
                   <td className="px-6 py-4"><div className="h-5 w-12 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
+                  <td className="px-6 py-4"><div className="h-5 w-16 bg-gray-200 animate-pulse rounded ml-auto"></div></td>
                 </tr>
               ))}
             </tbody>
@@ -240,8 +252,7 @@ export default function LeaderboardPage() {
                       y: -5,
                       boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
                     }}
-                  >
-                    <div className="p-6 flex flex-col items-center text-center">
+                  >                    <div className="p-6 flex flex-col items-center text-center">
                       <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                         <FaTrophy size={32} color={getTrophyColor(index + 1)} />
                       </div>
@@ -249,6 +260,9 @@ export default function LeaderboardPage() {
                       <p className="text-3xl font-bold my-2">{entry.wins} wins</p>
                       <p className="text-gray-600 text-sm">
                         {entry.games_played} games played • {Math.round(entry.win_percentage)}% win rate
+                      </p>
+                      <p className="text-gray-600 text-sm mt-1">
+                        {formatPlayTime(entry.total_time)} total play time
                       </p>
                     </div>
                   </motion.div>
@@ -265,12 +279,12 @@ export default function LeaderboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-100 border-b-2 border-black">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-bold">Rank</th>
+                    <tr>                      <th className="px-6 py-3 text-left text-sm font-bold">Rank</th>
                       <th className="px-6 py-3 text-left text-sm font-bold">Player</th>
                       <th className="px-6 py-3 text-right text-sm font-bold">Wins</th>
                       <th className="px-6 py-3 text-right text-sm font-bold">Games</th>
                       <th className="px-6 py-3 text-right text-sm font-bold">Win Rate</th>
+                      <th className="px-6 py-3 text-right text-sm font-bold">Play Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -295,11 +309,11 @@ export default function LeaderboardPage() {
                               {index < 3 && <FaTrophy className="mr-2" color={getTrophyColor(index + 1)} />}
                               <span>{index + 1}</span>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 font-medium">{entry.username}</td>
+                          </td>                          <td className="px-6 py-4 font-medium">{entry.username}</td>
                           <td className="px-6 py-4 text-right">{entry.wins}</td>
                           <td className="px-6 py-4 text-right">{entry.games_played}</td>
                           <td className="px-6 py-4 text-right">{Math.round(entry.win_percentage)}%</td>
+                          <td className="px-6 py-4 text-right">{formatPlayTime(entry.total_time)}</td>
                         </motion.tr>
                       ))
                     )}

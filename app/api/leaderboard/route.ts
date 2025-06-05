@@ -24,15 +24,29 @@ export async function GET(request: NextRequest) {
     const timeframe = searchParams.get("timeframe") || "all"
     const userId = searchParams.get("userId")
 
+    type LeaderboardData = {
+      id: string;
+      username: string;
+      wins: number;
+      games_played: number;
+      win_percentage: number;
+      rank: number;
+      total_time: number;
+    }
+
     if (userId) {
-      // Fetch stats for a single usr
-      const supabase = createRouteHandlerClient({ cookies })
-      const { data, error } = await supabase.rpc("get_leaderboard", { time_filter: timeframe })
+      const cookieStore = cookies()
+      const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+      const { data: leaderboardData, error } = await supabase.rpc("get_leaderboard", { time_filter: timeframe })
+      
       if (error) {
+        console.error("Leaderboard error:", error);
         return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
       }
-      type LeaderboardEntry = { id: string; [key: string]: unknown }
-      const entry = Array.isArray(data) ? (data as LeaderboardEntry[]).find((e) => e.id === userId) : null
+
+      const data = leaderboardData as LeaderboardData[]
+      const entry = data.find((e) => e.id === userId)
+      
       if (!entry) {
         return NextResponse.json({ error: "User not found in leaderboard" }, { status: 404 })
       }
@@ -45,15 +59,16 @@ export async function GET(request: NextRequest) {
     const cacheAge = currentTime - cacheEntry.lastUpdated
 
     if (cacheEntry.data && cacheEntry.refreshCount < REFRESH_THRESHOLD && cacheAge < CACHE_TTL) {
-      // Increment the refresh counter
       cacheEntry.refreshCount++
       console.log(`Using cached data for ${timeframe}. Refresh count: ${cacheEntry.refreshCount}`)
-
       return NextResponse.json(cacheEntry.data)
-    }    // If we're here, we need to fetch fresh data
+    }
+
+    // If we're here, we need to fetch fresh data
     console.log(`Fetching fresh data for ${timeframe}`)
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data, error } = await supabase.rpc("get_leaderboard", {
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const { data: leaderboardData, error } = await supabase.rpc("get_leaderboard", {
       time_filter: timeframe
     });
 
@@ -62,10 +77,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
     }
 
+    const data = leaderboardData as LeaderboardData[]
+
     // Update the cache
     cache[timeframe] = {
       data,
-      refreshCount: 1, 
+      refreshCount: 1,
       lastUpdated: currentTime,
     }
 
