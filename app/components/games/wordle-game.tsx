@@ -9,11 +9,33 @@ const ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNM".split("")
 
 type LetterState = "correct" | "present" | "absent" | "unused"
 
+interface GameState {
+  lastPlayedWord: string
+  date: string
+  guesses: string[]
+  currentRow: number
+  keyStates: { [key: string]: LetterState }
+  gameOver: boolean
+}
+
+interface WinState {
+  date: string
+  word: string
+}
+
 export default function WordleGame() {
   const [answer, setAnswer] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  const [guesses, setGuesses] = useState<string[]>(Array(MAX_GUESSES).fill(""))
+  const [currentGuess, setCurrentGuess] = useState("")
+  const [currentRow, setCurrentRow] = useState(0)
+  const [keyStates, setKeyStates] = useState<{ [key: string]: LetterState }>(
+    Object.fromEntries(ALPHABET.map(letter => [letter, "unused"]))
+  )
+  const [shake, setShake] = useState(false)
+  const [gameOver, setGameOver] = useState(false)
+  // Fetch the word when component mounts
   useEffect(() => {
     const fetchWord = async () => {
       try {
@@ -32,14 +54,47 @@ export default function WordleGame() {
     }
     fetchWord()
   }, [])
-  const [guesses, setGuesses] = useState<string[]>(Array(MAX_GUESSES).fill(""))
-  const [currentGuess, setCurrentGuess] = useState("")
-  const [currentRow, setCurrentRow] = useState(0)
-  const [keyStates, setKeyStates] = useState<{ [key: string]: LetterState }>(
-    Object.fromEntries(ALPHABET.map(letter => [letter, "unused"]))
-  )
-  const [shake, setShake] = useState(false)
-  const [gameOver, setGameOver] = useState(false)
+
+  // Load saved game state when the answer is loaded
+  useEffect(() => {
+    if (!answer || isLoading) return
+
+    const savedState = localStorage.getItem('wordleState')
+    if (savedState) {
+      const { lastPlayedWord, date, guesses: savedGuesses, currentRow: savedRow, keyStates: savedKeyStates, gameOver: savedGameOver } = JSON.parse(savedState)
+      
+      // Only restore state if it's from today and for the same word
+      const today = new Date().toDateString()
+      if (date === today && lastPlayedWord === answer) {
+        setGuesses(savedGuesses)
+        setCurrentRow(savedRow)
+        setKeyStates(savedKeyStates)
+        setGameOver(savedGameOver)
+      }
+    }
+  }, [answer, isLoading])
+
+  // Save game state whenever it changes
+  useEffect(() => {
+    if (!answer || isLoading) return
+
+    localStorage.setItem('wordleState', JSON.stringify({
+      lastPlayedWord: answer,
+      date: new Date().toDateString(),
+      guesses,
+      currentRow,
+      keyStates,
+      gameOver
+    }))
+  }, [answer, guesses, currentRow, keyStates, gameOver, isLoading])
+
+  // Save wins to track daily progress
+  const saveWin = useCallback(() => {
+    localStorage.setItem('wordleWins', JSON.stringify({
+      date: new Date().toDateString(),
+      word: answer
+    }))
+  }, [answer])
 
   const checkGuess = useCallback((guess: string): LetterState[] => {
     const result: LetterState[] = Array(WORD_LENGTH).fill("absent")
@@ -107,13 +162,19 @@ export default function WordleGame() {
     const states = checkGuess(currentGuess)
     updateKeyStates(currentGuess, states)
 
-    if (currentGuess === answer || currentRow === MAX_GUESSES - 1) {
+    if (currentGuess === answer) {
+      setGameOver(true)
+      const savedWins = localStorage.getItem('wordleWins')
+      if (!savedWins || JSON.parse(savedWins).date !== new Date().toDateString()) {
+        saveWin()
+      }
+    } else if (currentRow === MAX_GUESSES - 1) {
       setGameOver(true)
     } else {
       setCurrentRow(prev => prev + 1)
       setCurrentGuess("")
     }
-  }, [currentGuess, currentRow, guesses, answer, checkGuess, updateKeyStates])
+  }, [currentGuess, currentRow, guesses, answer, checkGuess, updateKeyStates, saveWin])
 
   const handleKeyInput = useCallback((key: string) => {
     if (gameOver) return
