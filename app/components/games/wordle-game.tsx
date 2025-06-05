@@ -101,7 +101,7 @@ export default function WordleGame() {
       return Math.random() * (max - min) + min
     }
 
-    const interval: any = setInterval(() => {
+    const interval: NodeJS.Timeout = setInterval(() => {
       const timeLeft = animationEnd - Date.now()
 
       if (timeLeft <= 0) {
