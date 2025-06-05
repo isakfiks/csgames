@@ -108,6 +108,14 @@ const currentGames = [
     players: "1 player",
     singlePlayer: true,
   },
+  {
+    id: 8,
+    title: "Corruptle",
+    description: "Guess the daily five-letter word in six tries. Each guess gives you hints!",
+    image: "/corrupt.svg?height=200&width=300",
+    players: "1 player",
+    singlePlayer: true,
+  },
 ]
 
 export default function ExplorePage() {

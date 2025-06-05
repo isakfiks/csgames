@@ -44,154 +44,15 @@ function GameError({ error }: { error: string }) {
 }
 
 // Play Again Button Component
-function PlayAgainButton({
-  lobbyId,
-  gameStateId,
-  currentUser,
-}: {
-  lobbyId: string
-  gameStateId: string
-  currentUser: User | null
-}) {
-  const supabase = createClientComponentClient()
-  const [playAgainStatus, setPlayAgainStatus] = useState<{
-    requestedBy: string[]
-    newGameId: string | null
-  } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-
-  // Fetch current play again status
-  useEffect(() => {
-    let isActive = true
-
-    const fetchPlayAgainStatus = async () => {
-      const { data, error } = await supabase
-        .from("play_again_requests")
-        .select("*")
-        .eq("original_game_id", gameStateId)
-        .single()
-
-      if (!error && data && isActive) {
-        setPlayAgainStatus(data)
-
-        // If there's a new game and current user has requested to play again, redirect
-        if (data.new_game_id && data.requested_by.includes(currentUser?.id || "")) {
-          window.location.href = `/game/${data.new_game_id}`
-        }
-      }
-    }
-
-    fetchPlayAgainStatus()
-
-    // Subscribe to changes
-    const channel = supabase
-      .channel(`play-again-${gameStateId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "play_again_requests",
-          filter: `original_game_id=eq.${gameStateId}`,
-        },
-        (payload) => {
-          if (isActive) {
-            const newData = payload.new as { requested_by: string[]; new_game_id: string | null }
-            setPlayAgainStatus({
-              requestedBy: newData.requested_by,
-              newGameId: newData.new_game_id,
-            })
-
-            // If there's a new game and current user has requested to play again, redirect
-            if (newData.new_game_id && newData.requested_by.includes(currentUser?.id || "")) {
-              window.location.href = `/game/${newData.new_game_id}`
-            }
-          }
-        },
-      )
-      .subscribe()
-
-    return () => {
-      isActive = false
-      channel.unsubscribe()
-    }
-  }, [gameStateId, supabase, currentUser])
-
-  const handlePlayAgain = async () => {
-    if (!currentUser) return
-
-    setIsLoading(true)
-    try {
-      // Check if a request already exists
-      const { data, error } = await supabase
-        .from("play_again_requests")
-        .select("*")
-        .eq("original_game_id", gameStateId)
-        .single()
-
-      if (error && error.code === "PGRST116") {
-        // No request exists, create one
-        await supabase.from("play_again_requests").insert({
-          original_game_id: gameStateId,
-          lobby_id: lobbyId,
-          requested_by: [currentUser.id],
-          new_game_id: null,
-        })
-      } else if (data) {
-        // Request exists but current user hasn't requested yet
-        if (!data.requested_by.includes(currentUser.id)) {
-          const updatedRequestedBy = [...data.requested_by, currentUser.id]
-
-          // If both players have now requested, create a new game
-          if (updatedRequestedBy.length >= 2) {
-            // Call server function to create a new game
-            const { data: newGameData } = await supabase.rpc("create_new_game_from_existing", {
-              p_original_game_id: gameStateId,
-              p_lobby_id: lobbyId,
-            })
-
-            if (newGameData) {
-              // Update the play again request with the new game ID
-              await supabase
-                .from("play_again_requests")
-                .update({
-                  requested_by: updatedRequestedBy,
-                  new_game_id: newGameData,
-                })
-                .eq("original_game_id", gameStateId)
-            }
-          } else {
-            // Just update the requested_by array
-            await supabase
-              .from("play_again_requests")
-              .update({ requested_by: updatedRequestedBy })
-              .eq("original_game_id", gameStateId)
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error handling play again:", err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // If user has already requested to play again
-  const hasRequested = playAgainStatus?.requestedBy.includes(currentUser?.id || "")
-
-  // How many players have requested to play again
-  const requestCount = playAgainStatus?.requestedBy.length || 0
-
+function PlayAgainButton() {
+  const router = useRouter()
   return (
     <button
-      onClick={handlePlayAgain}
-      disabled={isLoading || hasRequested}
-      className={`mt-2 px-4 py-2 rounded-lg flex items-center mx-auto ${
-        hasRequested ? "bg-gray-300 text-gray-700" : "bg-black text-white hover:bg-gray-800"
-      }`}
+      onClick={() => router.push('/explore')}
+      className="mt-2 px-4 py-2 rounded-lg flex items-center mx-auto transition-all duration-300 transform hover:scale-105 bg-black text-white hover:bg-gray-800"
     >
       <FaRedo className="mr-2" />
-      {isLoading ? "Loading..." : hasRequested ? `Waiting for opponent (${requestCount}/2)` : "Play Again"}
+      Play Another Game
     </button>
   )
 }
@@ -736,7 +597,7 @@ export default function TicTacToeGame({ lobbyId, currentUser }: TicTacToeGamePro
             ) : (
               <p className="text-lg font-bold">Game ended in a draw!</p>
             )}
-            <PlayAgainButton lobbyId={lobbyId} gameStateId={gameState.id} currentUser={currentUser} />
+            <PlayAgainButton/>
           </div>
         )}
 

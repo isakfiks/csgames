@@ -15,6 +15,7 @@ import Link from "next/link"
 import { FaGamepad, FaArrowLeft } from "react-icons/fa"
 import TicTacToeAIOpponent from "@/app/components/games/tic-tac-toe-opponent"
 import SlidingPuzzle from "@/app/components/games/sliding-puzzle"
+import WordleGame from "@/app/components/games/wordle-game"
 
 interface TicTacToeGameState {
   id: string
@@ -341,6 +342,7 @@ export default function GamePage({ params: paramsPromise }: { params: Promise<{ 
       {game.title === "Minesweeper" && <MinesweeperGame lobbyId={lobby.id} currentUser={currentUser} />}
       {game.title === "Battleship" && <BattleshipGame lobbyId={lobby.id} currentUser={currentUser} />}
       {game.title === "Sliding Puzzle" && <SlidingPuzzle lobbyId={lobby.id} currentUser={currentUser} />}
+      {game.title === "Corruptle" && <WordleGame />}
     </div>
   )
 }

@@ -67,14 +67,11 @@ function PlayAgainButton() {
 
   return (
     <button
-      onClick={handlePlayAgain}
-      disabled={isLoading || hasRequested}
-      className={`mt-2 px-4 py-2 rounded-lg flex items-center mx-auto transition-all duration-300 transform hover:scale-105 ${
-        hasRequested ? "bg-gray-300 text-gray-700" : "bg-black text-white hover:bg-gray-800"
-      }`}
+      onClick={() => router.push('/explore')}
+      className="mt-2 px-4 py-2 rounded-lg flex items-center mx-auto transition-all duration-300 transform hover:scale-105 bg-black text-white hover:bg-gray-800"
     >
-      <FaRedo className={`mr-2 ${isLoading ? "animate-spin" : ""}`} />
-      {isLoading ? "Loading..." : hasRequested ? `Waiting for opponent (${requestCount}/2)` : "Play Again"}
+      <FaRedo className="mr-2" />
+      Play Another Game
     </button>
   )
 }
