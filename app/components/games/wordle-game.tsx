@@ -22,11 +22,66 @@ export default function WordleGame() {
   )
   const [shake, setShake] = useState(false)
   const [gameOver, setGameOver] = useState(false)
+  const [streak, setStreak] = useState(0)
+  const [maxStreak, setMaxStreak] = useState(0)
 
-  // Save wins to track daily progress
+  useEffect(() => {
+    const savedStreak = localStorage.getItem('wordleStreak')
+    if (savedStreak) {
+      const { currentStreak, maxStreak: savedMaxStreak, lastWinDate } = JSON.parse(savedStreak)
+      
+      const today = new Date()
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const lastWin = new Date(lastWinDate)
+      
+      if (lastWin.toDateString() === yesterday.toDateString()) {
+        setStreak(currentStreak)
+      } else if (lastWin.toDateString() !== today.toDateString()) {
+        // Reset streak if plr didn't play yesterday and hasn't played today
+        setStreak(0)
+      }
+      
+      setMaxStreak(savedMaxStreak)
+    }
+  }, [])
+
   const saveWin = useCallback(() => {
+    const today = new Date()
+    const savedStreak = localStorage.getItem('wordleStreak')
+    let newStreak = 1
+    let newMaxStreak = 1
+    
+    if (savedStreak) {
+      const { currentStreak, maxStreak: savedMaxStreak, lastWinDate } = JSON.parse(savedStreak)
+      const lastWin = new Date(lastWinDate)
+      
+      if (lastWin.toDateString() === today.toDateString()) {
+        // Already won today, don't update streak
+        return
+      }
+      
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      
+      if (lastWin.toDateString() === yesterday.toDateString()) {
+        newStreak = currentStreak + 1
+      }
+      
+      newMaxStreak = Math.max(savedMaxStreak, newStreak)
+    }
+    
+    setStreak(newStreak)
+    setMaxStreak(newMaxStreak)
+    
+    localStorage.setItem('wordleStreak', JSON.stringify({
+      currentStreak: newStreak,
+      maxStreak: newMaxStreak,
+      lastWinDate: today.toDateString()
+    }))
+    
     localStorage.setItem('wordleWins', JSON.stringify({
-      date: new Date().toDateString(),
+      date: today.toDateString(),
       word: answer
     }))
   }, [answer])
@@ -54,17 +109,14 @@ export default function WordleGame() {
       }
 
       const particleCount = 50 * (timeLeft / duration)
-      
-      confetti({
-        ...defaults,
-        particleCount,
+        confetti(Object.assign({}, defaults, {
+        particleCount: particleCount,
         origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-      })
-      confetti({
-        ...defaults,
-        particleCount,
+      }))
+      confetti(Object.assign({}, defaults, {
+        particleCount: particleCount,
         origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-      })
+      }))
     }, 250)
 
     return () => clearInterval(interval)
@@ -228,18 +280,17 @@ export default function WordleGame() {
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyInput])
-
   const getLetterStateClass = (letter: string, state: LetterState) => {
-    const baseClass = "w-10 h-12 rounded font-bold text-lg transition-colors duration-300"
+    const baseClass = "w-8 h-10 sm:w-10 sm:h-12 rounded font-bold text-sm sm:text-lg flex items-center justify-center transition-colors duration-300 touch-manipulation select-none"
     switch (state) {
       case "correct":
-        return `${baseClass} bg-green-500 text-white hover:bg-green-600`
+        return `${baseClass} bg-green-500 text-white active:bg-green-600 hover:bg-green-600`
       case "present":
-        return `${baseClass} bg-yellow-500 text-white hover:bg-yellow-600`
+        return `${baseClass} bg-yellow-500 text-white active:bg-yellow-600 hover:bg-yellow-600`
       case "absent":
-        return `${baseClass} bg-gray-500 text-white hover:bg-gray-600`
+        return `${baseClass} bg-gray-500 text-white active:bg-gray-600 hover:bg-gray-600`
       default:
-        return `${baseClass} bg-gray-200 text-black hover:bg-gray-300`
+        return `${baseClass} bg-gray-200 text-black active:bg-gray-300 hover:bg-gray-300`
     }
   }
   const getBoxStyle = (rowIndex: number, colIdx: number) => {
@@ -293,10 +344,19 @@ export default function WordleGame() {
   }
 
   return (
-    <div className="text-black bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">
-      <header className="max-w-2xl mx-auto mb-6 flex flex-col items-center">
+    <div className="text-black bg-white min-h-screen p-4 md:p-8 font-[family-name:var(--font-geist-sans)]">      <header className="max-w-2xl mx-auto mb-6 flex flex-col items-center">
         <h1 className="text-3xl md:text-4xl font-bold text-black mb-2">Corruptle</h1>
-        <span className="text-gray-500 text-sm">Guess the {WORD_LENGTH}-letter word!</span>
+        <span className="text-gray-500 text-sm mb-2">Guess the {WORD_LENGTH}-letter word!</span>
+        <div className="flex gap-4 text-sm">
+          <div className="flex flex-col items-center">
+            <span className="font-bold text-lg">{streak}</span>
+            <span className="text-gray-500">Current Streak</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="font-bold text-lg">{maxStreak}</span>
+            <span className="text-gray-500">Max Streak</span>
+          </div>
+        </div>
       </header>
 
       <main className="flex flex-col items-center">
@@ -364,8 +424,8 @@ export default function WordleGame() {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col items-center space-y-2">
-          <div className="flex space-x-1">
+        <div className="flex flex-col items-center space-y-2 w-full max-w-lg px-1">
+          <div className="flex justify-center space-x-1 w-full">
             {ALPHABET.slice(0,10).map(letter => (
               <button
                 key={letter}
@@ -376,7 +436,7 @@ export default function WordleGame() {
               </button>
             ))}
           </div>
-          <div className="flex space-x-1">
+          <div className="flex justify-center space-x-1 w-full">
             {ALPHABET.slice(10,19).map(letter => (
               <button
                 key={letter}
@@ -387,10 +447,10 @@ export default function WordleGame() {
               </button>
             ))}
           </div>
-          <div className="flex space-x-1">
+          <div className="flex justify-center space-x-1 w-full">
             <button 
               onClick={() => handleKeyInput("ENTER")}
-              className="w-16 h-12 bg-gray-300 rounded font-bold text-black hover:bg-gray-400"
+              className="w-14 h-10 sm:w-16 sm:h-12 bg-gray-300 rounded font-bold text-xs sm:text-sm text-black hover:bg-gray-400 active:bg-gray-400 transition-colors duration-300 touch-manipulation select-none flex items-center justify-center"
             >
               Enter
             </button>
@@ -405,7 +465,7 @@ export default function WordleGame() {
             ))}
             <button 
               onClick={() => handleKeyInput("DEL")}
-              className="w-16 h-12 bg-gray-300 rounded font-bold text-black hover:bg-gray-400"
+              className="w-14 h-10 sm:w-16 sm:h-12 bg-gray-300 rounded font-bold text-xs sm:text-sm text-black hover:bg-gray-400 active:bg-gray-400 transition-colors duration-300 touch-manipulation select-none flex items-center justify-center"
             >
               Del
             </button>
