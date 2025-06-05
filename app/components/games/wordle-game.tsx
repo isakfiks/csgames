@@ -7,13 +7,31 @@ const WORD_LENGTH = 5
 const MAX_GUESSES = 6
 const ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNM".split("")
 
-// Overly simplified on-page wordlist, purely for testing rn
-const VALID_WORDS = ["HACKR","HCLUB", "CRABS"]
-
 type LetterState = "correct" | "present" | "absent" | "unused"
 
 export default function WordleGame() {
-  const [answer] = useState(() => VALID_WORDS[Math.floor(Math.random() * VALID_WORDS.length)])
+  const [answer, setAnswer] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchWord = async () => {
+      try {
+        const response = await fetch('/api/wordle-word')
+        const data = await response.json()
+        if (response.ok) {
+          setAnswer(data.word.toUpperCase())
+        } else {
+          setError(data.error || 'Failed to fetch word')
+        }
+      } catch (err) {
+        setError('Failed to fetch word: ' + err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchWord()
+  }, [])
   const [guesses, setGuesses] = useState<string[]>(Array(MAX_GUESSES).fill(""))
   const [currentGuess, setCurrentGuess] = useState("")
   const [currentRow, setCurrentRow] = useState(0)
@@ -66,10 +84,17 @@ export default function WordleGame() {
       return newStates
     })
   }, [])
-
-  const submitGuess = useCallback(() => {
+  const submitGuess = useCallback(async () => {
     if (currentGuess.length !== WORD_LENGTH) return
-    if (!VALID_WORDS.includes(currentGuess)) {
+
+    const response = await fetch('/api/wordle-validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: currentGuess })
+    })
+    const data = await response.json()
+
+    if (!data.valid) {
       setShake(true)
       setTimeout(() => setShake(false), 500)
       return
@@ -153,6 +178,21 @@ export default function WordleGame() {
       default:
         return "border-2 border-gray-300 bg-gray-50"
     }
+  }
+  if (isLoading) {
+    return (
+      <div className="text-black bg-white min-h-screen p-4 md:p-8 flex items-center justify-center">
+        <div className="text-xl">Loading game...</div>
+      </div>
+    )
+  }
+
+  if (error || !answer) {
+    return (
+      <div className="text-black bg-white min-h-screen p-4 md:p-8 flex items-center justify-center">
+        <div className="text-xl text-red-500">Failed to start game. Please try again.</div>
+      </div>
+    )
   }
 
   return (
