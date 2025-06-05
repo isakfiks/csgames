@@ -74,6 +74,9 @@ api_url = "http://127.0.0.1"
 openai_api_key = "env(OPENAI_API_KEY)"
 
 # Configure cron jobs
+[cron]
+enabled = true
+
 [cron.cleanup_inactive_lobbies]
 schedule = "*/5 * * * *"  # Run every 5 minutes
 function = "public.run_periodic_lobby_cleanup"

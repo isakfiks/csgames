@@ -319,6 +319,28 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     }
   }
 
+  async function startGame() {
+    try {
+      // Update game state to playing
+      const { error } = await supabase
+        .from('game_states')
+        .update({ status: 'playing' })
+        .eq('lobby_id', resolvedParams.id);
+
+      if (error) {
+        console.error("Error starting game:", error);
+        setError("Failed to start game");
+        return;
+      }
+
+      // Navigate to game page
+      router.push(`/game/${resolvedParams.id}`);
+    } catch (err) {
+      console.error("Error in startGame:", err);
+      setError("Failed to start game");
+    }
+  }
+
   async function handleManualRefresh() {
     setIsRefreshing(true);
     await refreshLobbyData();
@@ -667,18 +689,18 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                     : "Waiting for Players"}
                 </span>
               </div>
-
               {isGameFull && isWaiting && isCreator && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-700 mb-2">
                     All players are ready! As the creator of this lobby, you can start the game.
                   </p>
-                  <Link href={`/game/${resolvedParams.id}`}>
-                    <button className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-2 rounded-lg flex items-center hover:from-yellow-600 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-md">
-                      <FaPlay className="mr-2" />
-                      Start Game
-                    </button>
-                  </Link>
+                  <button
+                    onClick={startGame}
+                    className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-2 rounded-lg flex items-center hover:from-yellow-600 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-md"
+                  >
+                    <FaPlay className="mr-2" />
+                    Start Game
+                  </button>
                 </div>
               )}
 
@@ -709,15 +731,13 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                     <p className="text-gray-600 text-sm">This game is already in progress.</p>
                   </div>
                 )}
-              </div>
-
-              <div className="flex gap-3 w-full sm:w-auto">
+              </div>              <div className="flex gap-3 w-full sm:w-auto">
                 {isInGame && gameState?.status === "playing" && (
                   <Link href={`/game/${resolvedParams.id}`} className="w-full sm:w-auto">
-                    <button className="w-full sm:w-auto bg-black text-white px-6 py-3 rounded-lg flex items-center justify-center border-2 border-black hover:bg-gray-900 transition-all duration-300 transform hover:scale-105 shadow-md">
+                    <div className="w-full sm:w-auto bg-black text-white px-6 py-3 rounded-lg flex items-center justify-center border-2 border-black hover:bg-gray-900 transition-all duration-300 transform hover:scale-105 shadow-md">
                       <FaPlay className="mr-2" />
-                      Go to Game
-                    </button>
+                      <span>Go to Game</span>
+                    </div>
                   </Link>
                 )}
 

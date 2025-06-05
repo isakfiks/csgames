@@ -62,143 +62,8 @@ function GameError({ error }: { error: string }) {
 }
 
 // Play Again Button Component
-function PlayAgainButton({
-  lobbyId,
-  gameStateId,
-  currentUser,
-}: {
-  lobbyId: string
-  gameStateId: string
-  currentUser: User | null
-}) {
-  const supabase = createClientComponentClient()
-  const [playAgainStatus, setPlayAgainStatus] = useState<{
-    requestedBy: string[]
-    newGameId: string | null
-  } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-
-  // Fetch current play again status
-  useEffect(() => {
-    let isActive = true
-
-    const fetchPlayAgainStatus = async () => {
-      const { data, error } = await supabase
-        .from("play_again_requests")
-        .select("*")
-        .eq("original_game_id", gameStateId)
-        .single()
-
-      if (!error && data && isActive) {
-        setPlayAgainStatus(data)
-
-        // If there's a new game and current user has requested to play again, redirect
-        if (data.new_game_id && data.requested_by.includes(currentUser?.id || "")) {
-          window.location.href = `/game/${data.new_game_id}`
-        }
-      }
-    }
-
-    fetchPlayAgainStatus()
-
-    // Subscribe to changes
-    const channel = supabase
-      .channel(`play-again-${gameStateId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "play_again_requests",
-          filter: `original_game_id=eq.${gameStateId}`,
-        },
-        (payload) => {
-          if (isActive) {
-            const newData = payload.new as { requested_by: string[]; new_game_id: string | null }
-            setPlayAgainStatus({
-              requestedBy: newData.requested_by,
-              newGameId: newData.new_game_id,
-            })
-
-            // If there's a new game and current user has requested to play again, redirect
-            if (newData.new_game_id && newData.requested_by.includes(currentUser?.id || "")) {
-              window.location.href = `/game/${newData.new_game_id}`
-            }
-          }
-        },
-      )
-      .subscribe()
-
-    return () => {
-      isActive = false
-      channel.unsubscribe()
-    }
-  }, [gameStateId, supabase, currentUser])
-
-  const handlePlayAgain = async () => {
-    if (!currentUser) return
-
-    setIsLoading(true)
-    try {
-      // Check if a request already exists
-      const { data, error } = await supabase
-        .from("play_again_requests")
-        .select("*")
-        .eq("original_game_id", gameStateId)
-        .single()
-
-      if (error && error.code === "PGRST116") {
-        // No request exists, create one
-        await supabase.from("play_again_requests").insert({
-          original_game_id: gameStateId,
-          lobby_id: lobbyId,
-          requested_by: [currentUser.id],
-          new_game_id: null,
-        })
-      } else if (data) {
-        // Request exists but current user hasn't requested yet
-        if (!data.requested_by.includes(currentUser.id)) {
-          const updatedRequestedBy = [...data.requested_by, currentUser.id]
-
-          // If both players have now requested, create a new game
-          if (updatedRequestedBy.length >= 2) {
-            // Call server function to create a new game
-            const { data: newGameData } = await supabase.rpc("create_new_game_from_existing", {
-              p_original_game_id: gameStateId,
-              p_lobby_id: lobbyId,
-            })
-
-            if (newGameData) {
-              // Update the play again request with the new game ID
-              await supabase
-                .from("play_again_requests")
-                .update({
-                  requested_by: updatedRequestedBy,
-                  new_game_id: newGameData,
-                })
-                .eq("original_game_id", gameStateId)
-            }
-          } else {
-            // Just update the requested_by array
-            await supabase
-              .from("play_again_requests")
-              .update({ requested_by: updatedRequestedBy })
-              .eq("original_game_id", gameStateId)
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error handling play again:", err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // If user has already requested to play again
-  const hasRequested = playAgainStatus?.requestedBy.includes(currentUser?.id || "")
-
-  // How many players have requested to play again
-  const requestCount = playAgainStatus?.requestedBy.length || 0
+function PlayAgainButton() {
+  const router = useRouter()
 
   return (
     <button
@@ -415,8 +280,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
       stopPolling()
     }
   }, [lobbyId, router, supabase, currentUser])
-  
-  // Find winning cells
+    // Find winning cells
   function findWinningCells(board: number[][]) {
     if (!board) return
     
@@ -424,64 +288,56 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
     const cols = board[0].length
     const winningCells: Array<[number, number]> = []
     
-    // Check horizontal
+    // Function to check if coordinates are within bounds
+    const isValidPosition = (r: number, c: number) => 
+      r >= 0 && r < rows && c >= 0 && c < cols
+    
+    // Function to check a line of four cells
+    const checkLine = (startR: number, startC: number, deltaR: number, deltaC: number) => {
+      if (!isValidPosition(startR, startC)) return false
+      
+      const player = board[startR][startC]
+      if (player === 0) return false
+      
+      const positions: Array<[number, number]> = []
+      
+      for (let i = 0; i < 4; i++) {
+        const r = startR + deltaR * i
+        const c = startC + deltaC * i
+        
+        if (!isValidPosition(r, c) || board[r][c] !== player) {
+          return false
+        }
+        
+        positions.push([r, c])
+      }
+      
+      // If we found a winning line, add all positions to winningCells
+      winningCells.push(...positions)
+      return true
+    }
+    
+    // Check all possible winning lines
     for (let r = 0; r < rows; r++) {
-      for (let c = 0; c <= cols - 4; c++) {
-        if (
-          board[r][c] !== 0 &&
-          board[r][c] === board[r][c + 1] &&
-          board[r][c] === board[r][c + 2] &&
-          board[r][c] === board[r][c + 3]
-        ) {
-          winningCells.push([r, c], [r, c + 1], [r, c + 2], [r, c + 3])
-        }
-      }
-    }
-    
-    // Check vertical
-    for (let r = 0; r <= rows - 4; r++) {
       for (let c = 0; c < cols; c++) {
-        if (
-          board[r][c] !== 0 &&
-          board[r][c] === board[r + 1][c] &&
-          board[r][c] === board[r + 2][c] &&
-          board[r][c] === board[r + 3][c]
-        ) {
-          winningCells.push([r, c], [r + 1, c], [r + 2, c], [r + 3, c])
-        }
-      }
-    }
-    
-    // Check diagonal (down-right)
-    for (let r = 0; r <= rows - 4; r++) {
-      for (let c = 0; c <= cols - 4; c++) {
-        if (
-          board[r][c] !== 0 &&
-          board[r][c] === board[r + 1][c + 1] &&
-          board[r][c] === board[r + 2][c + 2] &&
-          board[r][c] === board[r + 3][c + 3]
-        ) {
-          winningCells.push([r, c], [r + 1, c + 1], [r + 2, c + 2], [r + 3, c + 3])
-        }
-      }
-    }
-    
-    // Check diagonal (up-right)
-    for (let r = 3; r < rows; r++) {
-      for (let c = 0; c <= cols - 4; c++) {
-        if (
-          board[r][c] !== 0 &&
-          board[r][c] === board[r - 1][c + 1] &&
-          board[r][c] === board[r - 2][c + 2] &&
-          board[r][c] === board[r - 3][c + 3]
-        ) {
-          winningCells.push([r, c], [r - 1, c + 1], [r - 2, c + 2], [r - 3, c + 3])
-        }
+        // Skip empty cells
+        if (board[r][c] === 0) continue
+        
+        checkLine(r, c, 0, 1)
+        
+        checkLine(r, c, 1, 0)
+        
+        checkLine(r, c, 1, 1)
+        
+        checkLine(r, c, -1, 1)
       }
     }
     
     if (winningCells.length > 0) {
-      setWinningCells(winningCells)
+      // Remove any duplicate winning cells
+      const uniqueWinningCells = Array.from(new Set(winningCells.map(cell => JSON.stringify(cell))))
+        .map(cell => JSON.parse(cell) as [number, number])
+      setWinningCells(uniqueWinningCells)
     }
   }
 
@@ -743,7 +599,7 @@ export default function ConnectFourGame({ lobbyId, currentUser }: ConnectFourGam
             ) : (
               <p className="text-lg font-bold">Game ended in a draw!</p>
             )}
-            <PlayAgainButton lobbyId={lobbyId} gameStateId={gameState.id} currentUser={currentUser} />
+            <PlayAgainButton/>
           </div>
         )}
 
