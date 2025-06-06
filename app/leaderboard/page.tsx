@@ -31,10 +31,11 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [timeframe, setTimeframe] = useState<"all" | "month" | "week">("all")
+  const [sortBy, setSortBy] = useState<"wins" | "games" | "winrate" | "playtime">("wins")
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [timeframe])
+  }, [timeframe, sortBy])
 
   async function fetchLeaderboard() {
     try {
@@ -42,7 +43,7 @@ export default function LeaderboardPage() {
       setError(null)
 
       // Fetch leaderboard data from the API
-      const response = await fetch(`/api/leaderboard?timeframe=${timeframe}`)
+      const response = await fetch(`/api/leaderboard?timeframe=${timeframe}&sort=${sortBy}`)
 
       if (!response.ok) {
         throw new Error("Failed to fetch leaderboard data")
@@ -194,25 +195,53 @@ export default function LeaderboardPage() {
               <FaSync className="text-black" />
             </button>
 
-            <div className="flex border-2 border-black rounded-lg overflow-hidden">
-              <button
-                onClick={() => setTimeframe("all")}
-                className={`px-3 py-1 ${timeframe === "all" ? "bg-black text-white" : "bg-white text-black"}`}
-              >
-                All Time
-              </button>
-              <button
-                onClick={() => setTimeframe("month")}
-                className={`px-3 py-1 ${timeframe === "month" ? "bg-black text-white" : "bg-white text-black"}`}
-              >
-                Month
-              </button>
-              <button
-                onClick={() => setTimeframe("week")}
-                className={`px-3 py-1 ${timeframe === "week" ? "bg-black text-white" : "bg-white text-black"}`}
-              >
-                Week
-              </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex border-2 border-black rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setTimeframe("all")}
+                  className={`px-3 py-1 ${timeframe === "all" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  All Time
+                </button>
+                <button
+                  onClick={() => setTimeframe("month")}
+                  className={`px-3 py-1 ${timeframe === "month" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Month
+                </button>
+                <button
+                  onClick={() => setTimeframe("week")}
+                  className={`px-3 py-1 ${timeframe === "week" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Week
+                </button>
+              </div>
+
+              <div className="flex border-2 border-black rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setSortBy("wins")}                  className={`px-3 py-1 ${sortBy === "wins" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Wins
+                </button>
+                <button
+                  onClick={() => setSortBy("games")}
+                  className={`px-3 py-1 ${sortBy === "games" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Games
+                </button>
+                <button
+                  onClick={() => setSortBy("winrate")}
+                  className={`px-3 py-1 ${sortBy === "winrate" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Win Rate
+                </button>
+                <button
+                  onClick={() => setSortBy("playtime")}
+                  className={`px-3 py-1 ${sortBy === "playtime" ? "bg-black text-white" : "bg-white text-black"}`}
+                >
+                  Time
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -252,12 +281,17 @@ export default function LeaderboardPage() {
                       y: -5,
                       boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
                     }}
-                  >                    <div className="p-6 flex flex-col items-center text-center">
-                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                  >                    <div className="p-6 flex flex-col items-center text-center">                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                         <FaTrophy size={32} color={getTrophyColor(index + 1)} />
-                      </div>
-                      <h3 className="text-xl font-bold">{entry.username}</h3>
-                      <p className="text-3xl font-bold my-2">{entry.wins} wins</p>
+                      </div>                      <Link href={`/profile?${entry.id}`} className="hover:underline">
+                        <h3 className="text-xl font-bold">{entry.username}</h3>
+                      </Link>
+                      <p className="text-3xl font-bold my-2">
+                        {sortBy === "wins" ? `${entry.wins} wins` :
+                         sortBy === "games" ? `${entry.games_played} games` :
+                         sortBy === "winrate" ? `${Math.round(entry.win_percentage)}%` :
+                         formatPlayTime(entry.total_time)}
+                      </p>
                       <p className="text-gray-600 text-sm">
                         {entry.games_played} games played • {Math.round(entry.win_percentage)}% win rate
                       </p>
@@ -287,10 +321,9 @@ export default function LeaderboardPage() {
                       <th className="px-6 py-3 text-right text-sm font-bold">Play Time</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {leaderboard.length === 0 ? (
+                  <tbody>                    {leaderboard.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                           No players found. Be the first to win a game!
                         </td>
                       </tr>
@@ -303,17 +336,28 @@ export default function LeaderboardPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.1 + index * 0.03 }}
                           whileHover={{ backgroundColor: "#f9fafb" }}
-                        >
-                          <td className="px-6 py-4">
+                        >                          <td className="px-6 py-4">
                             <div className="flex items-center">
                               {index < 3 && <FaTrophy className="mr-2" color={getTrophyColor(index + 1)} />}
                               <span>{index + 1}</span>
                             </div>
-                          </td>                          <td className="px-6 py-4 font-medium">{entry.username}</td>
-                          <td className="px-6 py-4 text-right">{entry.wins}</td>
-                          <td className="px-6 py-4 text-right">{entry.games_played}</td>
-                          <td className="px-6 py-4 text-right">{Math.round(entry.win_percentage)}%</td>
-                          <td className="px-6 py-4 text-right">{formatPlayTime(entry.total_time)}</td>
+                          </td>                          <td className="px-6 py-4 font-medium">
+                            <Link href={`/profile?${entry.id}`} className="hover:underline">
+                              {entry.username}
+                            </Link>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={sortBy === "wins" ? "font-bold" : ""}>{entry.wins}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={sortBy === "games" ? "font-bold" : ""}>{entry.games_played}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={sortBy === "winrate" ? "font-bold" : ""}>{Math.round(entry.win_percentage)}%</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={sortBy === "playtime" ? "font-bold" : ""}>{formatPlayTime(entry.total_time)}</span>
+                          </td>
                         </motion.tr>
                       ))
                     )}
