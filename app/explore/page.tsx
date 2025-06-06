@@ -135,6 +135,25 @@ export default function ExplorePage() {
   // Filter games based on search
   const filteredGames = currentGames.filter((game) => game.title.toLowerCase().includes(searchTerm.toLowerCase()))
 
+  useEffect(() => {
+    async function runCleanup() {
+      try {
+        const { error } = await supabase.rpc('run_periodic_lobby_cleanup')
+        if (error) {
+          console.error('Error running lobby cleanup:', error)
+        }
+      } catch (err) {
+        console.error('Error in cleanup:', err)
+      }
+    }
+
+    runCleanup()
+
+    const interval = setInterval(runCleanup, 5 * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
   // Check if user is logged in and if they have a username
   useEffect(() => {
     async function checkUserAndUsername() {
@@ -494,6 +513,36 @@ export default function ExplorePage() {
       }
     }
   }, [user])
+  async function handleGameClick(gameStateId: string) {
+    try {
+      const { data: gameState, error } = await supabase
+        .from("game_states")
+        .select(`
+          id,
+          status,
+          lobby_id
+        `)
+        .eq("id", gameStateId)
+        .single()
+      
+      if (error || !gameState) {
+        // Remove expired game from list
+        setActiveGames(prev => prev.filter(g => g.gameStateId !== gameStateId))
+        alert("This game session has expired or been deleted.")
+        return
+      }
+
+      // Decide whether to go to /lobby or /game
+      if (gameState.status === 'waiting') {
+        window.location.href = `/lobby/${gameState.lobby_id}`
+      } else {
+        window.location.href = `/game/${gameState.id}`
+      }
+    } catch (err) {
+      console.error("Error checking game state:", err)
+      alert("Unable to join game. Please try again.")
+    }
+  }
 
   if (isLoading) {
     return (
@@ -661,7 +710,11 @@ export default function ExplorePage() {
               {activeGames.map((game) => (
                 <Link
                   key={game.gameStateId}
-                  href={`/game/${game.gameStateId}`}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleGameClick(game.gameStateId)
+                  }}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
                     game.yourTurn
                       ? "border-green-500 bg-green-50 hover:bg-green-100"
