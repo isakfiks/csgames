@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sort") || "wins"    
     const cacheKey = `${timeframe}-${sortBy}`
 
-    const convertLeaderboardData = (data: any[]): LeaderboardData[] => {
+    const convertLeaderboardData = (data: Array<Omit<LeaderboardData, "id"> & { id: string | number }>): LeaderboardData[] => {
       return data.map(entry => ({
         ...entry,
         id: entry.id.toString()
