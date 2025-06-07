@@ -283,7 +283,7 @@ export default function LeaderboardPage() {
                     }}
                   >                    <div className="p-6 flex flex-col items-center text-center">                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                         <FaTrophy size={32} color={getTrophyColor(index + 1)} />
-                      </div>                      <Link href={`/profile?${entry.id}`} className="hover:underline">
+                      </div>                      <Link href={`/profile?userId=${entry.id}`} className="hover:underline">
                         <h3 className="text-xl font-bold">{entry.username}</h3>
                       </Link>
                       <p className="text-3xl font-bold my-2">
@@ -342,7 +342,7 @@ export default function LeaderboardPage() {
                               <span>{index + 1}</span>
                             </div>
                           </td>                          <td className="px-6 py-4 font-medium">
-                            <Link href={`/profile?${entry.id}`} className="hover:underline">
+                            <Link href={`/profile?userId=${entry.id}`} className="hover:underline">
                               {entry.username}
                             </Link>
                           </td>
